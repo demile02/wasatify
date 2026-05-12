@@ -35,7 +35,16 @@ export function RegisterForm({ role, title, fieldLabel, fieldPlaceholder, button
   }
 
   return (
-    <AuthShell backTo="/register">
+    <AuthShell
+      backTo="/register"
+      illustration={role === 'teacher' ? '/assets/wasatify-auth-teacher.png' : '/assets/wasatify-auth-student.png'}
+      panelTitle={role === 'teacher' ? 'Kelola kelas Wasathiyah modern' : 'Mulai perjalanan belajar Wasathiyah'}
+      panelText={
+        role === 'teacher'
+          ? 'Buat modul, pantau progress siswa, dan kelola refleksi pembelajaran dalam satu dashboard yang rapi.'
+          : 'Akses materi mikro, quiz interaktif, XP, badge, dan refleksi harian dari dashboard yang nyaman.'
+      }
+    >
       <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center">
         <h1 className="font-display text-3xl font-extrabold">{title}</h1>
         <p className="mt-2 text-sm text-slate-500">Isi data diri untuk membuat akun baru.</p>

@@ -38,7 +38,11 @@ export function LoginPage() {
   }
 
   return (
-    <AuthShell>
+    <AuthShell
+      illustration="/assets/wasatify-auth-student.png"
+      panelTitle="Belajar singkat, konsisten, dan bermakna"
+      panelText="Masuk untuk melanjutkan modul, menjaga streak, menyelesaikan quiz, dan menulis refleksi nilai Wasathiyah."
+    >
       <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center">
         <div className="mb-8 text-center">
           <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-emerald-50 text-emerald-700">

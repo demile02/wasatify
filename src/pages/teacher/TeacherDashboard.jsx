@@ -79,6 +79,15 @@ export function TeacherDashboard() {
           </Card>
         </div>
         <aside className="space-y-6 pb-20 lg:pb-0">
+          <Card className="overflow-hidden p-0">
+            <div className="relative h-56 bg-emerald-50">
+              <img src="/assets/wasatify-auth-teacher.png" alt="" className="absolute inset-0 h-full w-full object-cover" />
+            </div>
+            <div className="p-5">
+              <p className="font-display text-xl font-bold">Ruang guru modern</p>
+              <p className="mt-2 text-sm leading-6 text-slate-500">Pantau kelas, evaluasi, refleksi, dan pengumuman dari satu dashboard.</p>
+            </div>
+          </Card>
           <Card>
             <div className="flex items-center justify-between">
               <h2 className="font-display text-xl font-bold">Pengumuman Terbaru</h2>

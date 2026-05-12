@@ -33,6 +33,9 @@ export function TeacherModules() {
     <DashboardLayout role="teacher" title="Modul Pembelajaran" subtitle="Tambah, edit, hapus, dan publikasikan modul microlearning.">
       <div className="grid gap-6 xl:grid-cols-[0.85fr_1.25fr]">
         <Card>
+          <div className="mb-5 overflow-hidden rounded-3xl bg-emerald-50">
+            <img src="/assets/wasatify-module-art.png" alt="" className="h-52 w-full object-cover" />
+          </div>
           <h2 className="font-display text-xl font-bold">Tambah Modul Baru</h2>
           <form onSubmit={addModule} className="mt-5 space-y-4">
             <label className="block">

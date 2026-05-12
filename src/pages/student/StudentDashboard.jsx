@@ -2,7 +2,6 @@ import { ArrowRight, Flame } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { DashboardLayout } from '../../layouts/DashboardLayout';
 import { Card } from '../../components/ui/Card';
-import { LearningIllustration } from '../../components/ui/Illustration';
 import { ProgressRing } from '../../components/ui/ProgressRing';
 import { modules, studentStats, achievements } from '../../services/demoData';
 
@@ -41,7 +40,9 @@ export function StudentDashboard() {
                   </Link>
                 </div>
               </div>
-              <LearningIllustration compact />
+              <div className="relative min-h-[230px] overflow-hidden bg-emerald-50">
+                <img src="/assets/wasatify-module-art.png" alt="" className="absolute inset-0 h-full w-full object-cover" />
+              </div>
             </div>
           </Card>
 
@@ -53,8 +54,10 @@ export function StudentDashboard() {
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {modules.slice(0, 3).map((module) => (
                 <Card key={module.id}>
-                  <div className="mb-4 h-28 rounded-2xl bg-gradient-to-br from-emerald-100 via-cream to-sky-100 p-4">
-                    <span className="rounded-full bg-white/80 px-3 py-1 text-xs font-bold text-emerald-700">Modul {module.id}</span>
+                  <div className="relative mb-4 h-32 overflow-hidden rounded-2xl bg-emerald-50 p-4">
+                    <img src="/assets/wasatify-module-art.png" alt="" className="absolute inset-0 h-full w-full object-cover" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-emerald-950/35 to-transparent" />
+                    <span className="relative z-10 rounded-full bg-white/85 px-3 py-1 text-xs font-bold text-emerald-700">Modul {module.id}</span>
                   </div>
                   <h3 className="font-display font-bold">{module.title}</h3>
                   <p className="mt-2 text-sm text-slate-500">{module.duration}</p>

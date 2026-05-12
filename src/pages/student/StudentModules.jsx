@@ -48,11 +48,9 @@ export function StudentModules() {
                   Tawazun mengajak kita menempatkan urusan dunia dan akhirat secara proporsional, tidak berlebihan, dan tidak mengabaikan tanggung jawab sosial.
                 </p>
               </div>
-              <div className="relative min-h-56">
-                <div className="absolute left-1/2 top-4 h-44 w-2 -translate-x-1/2 rounded bg-amber-700" />
-                <div className="absolute left-1/2 top-8 h-2 w-52 -translate-x-1/2 rounded bg-amber-700" />
-                <div className="absolute left-4 top-20 rounded-full bg-emerald-600 px-5 py-3 font-bold text-white">Dunia</div>
-                <div className="absolute right-4 top-20 rounded-full bg-emerald-600 px-5 py-3 font-bold text-white">Akhirat</div>
+              <div className="relative min-h-64 overflow-hidden rounded-3xl bg-white">
+                <img src="/assets/wasatify-module-art.png" alt="" className="absolute inset-0 h-full w-full object-cover" />
+                <div className="absolute inset-0 bg-gradient-to-t from-emerald-950/20 to-transparent" />
               </div>
             </div>
             <div className="bg-emerald-900 p-5 text-white">

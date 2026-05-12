@@ -51,14 +51,19 @@ export function StudentQuiz() {
             <Button onClick={() => setDone(true)}>Selanjutnya <ArrowRight className="h-4 w-4" /></Button>
           </div>
         </Card>
-        <Card className="grid place-items-center text-center">
+        <Card className="grid place-items-center overflow-hidden p-0 text-center">
           <div>
-            <div className="mx-auto grid h-28 w-28 place-items-center rounded-full bg-amber-100 text-gold">
-              <Trophy className="h-16 w-16" />
+            <div className="relative h-64 w-full overflow-hidden bg-emerald-50">
+              <img src="/assets/wasatify-reflection-quiz.png" alt="" className="absolute inset-0 h-full w-full object-cover" />
             </div>
-            <h2 className="mt-6 font-display text-3xl font-extrabold">{done ? 'Kuis Selesai!' : 'Target Skor'}</h2>
-            <p className="mt-4 font-display text-5xl font-extrabold text-emerald-900">{done ? '80' : '85'}<span className="text-xl text-slate-400"> /100</span></p>
-            <p className="mx-auto mt-4 max-w-sm text-sm leading-6 text-slate-500">Kerja bagus! Terus tingkatkan pemahamanmu dan lanjutkan refleksi setelah kuis.</p>
+            <div className="p-7">
+              <div className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-amber-100 text-gold">
+                <Trophy className="h-10 w-10" />
+              </div>
+              <h2 className="mt-5 font-display text-3xl font-extrabold">{done ? 'Kuis Selesai!' : 'Target Skor'}</h2>
+              <p className="mt-4 font-display text-5xl font-extrabold text-emerald-900">{done ? '80' : '85'}<span className="text-xl text-slate-400"> /100</span></p>
+              <p className="mx-auto mt-4 max-w-sm text-sm leading-6 text-slate-500">Kerja bagus! Terus tingkatkan pemahamanmu dan lanjutkan refleksi setelah kuis.</p>
+            </div>
           </div>
         </Card>
       </div>

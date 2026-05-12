@@ -39,10 +39,13 @@ export function StudentReflection() {
             <Button onClick={saveReflection} className="mt-6 w-full"><Save className="h-4 w-4" /> Simpan Refleksi</Button>
             {saved && <p className="mt-4 rounded-xl bg-emerald-50 p-3 text-sm font-bold text-emerald-700">Refleksi tersimpan untuk demo.</p>}
           </div>
-          <div className="rounded-3xl bg-gradient-to-br from-emerald-50 to-cream p-6">
-            <div className="mx-auto h-28 w-28 rounded-full bg-amber-100" />
-            <div className="mx-auto mt-[-8px] h-36 w-36 rounded-[2rem] bg-emerald-600" />
+          <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-50 to-cream">
+            <div className="relative h-80">
+              <img src="/assets/wasatify-reflection-quiz.png" alt="" className="absolute inset-0 h-full w-full object-cover" />
+            </div>
+            <div className="p-6">
             <p className="mt-6 text-center text-sm leading-6 text-slate-600">Refleksi yang baik membantu nilai wasathiyah menjadi kebiasaan, bukan hanya pengetahuan.</p>
+            </div>
           </div>
         </div>
       </Card>
