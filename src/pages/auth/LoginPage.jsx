@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Eye, Lock, Mail, UserRound, GraduationCap } from 'lucide-react';
 import { AuthShell } from './AuthShell';
 import { Button } from '../../components/ui/Button';
-import { isSupabaseConfigured, supabase } from '../../lib/supabase';
+import { getAuthRedirectUrl, isSupabaseConfigured, supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
 
 export function LoginPage() {
@@ -12,6 +12,7 @@ export function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
   const { isAuthenticated, profile, refreshProfile } = useAuth();
 
@@ -71,7 +72,7 @@ export function LoginPage() {
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}${role === 'teacher' ? '/guru' : '/siswa'}`,
+        redirectTo: getAuthRedirectUrl(role === 'teacher' ? '/guru' : '/siswa'),
         queryParams: {
           access_type: 'offline',
           prompt: 'consent',
@@ -113,15 +114,17 @@ export function LoginPage() {
             <span className="mb-2 block text-sm font-bold">Email</span>
             <div className="flex items-center gap-3 rounded-xl border border-slate-200 px-4 py-3">
               <Mail className="h-5 w-5 text-slate-400" />
-              <input value={email} onChange={(event) => setEmail(event.target.value)} className="w-full outline-none" placeholder="Masukkan email" type="email" />
+              <input value={email} onChange={(event) => setEmail(event.target.value)} className="w-full outline-none" placeholder="Masukkan email" type="email" required />
             </div>
           </label>
           <label className="block">
             <span className="mb-2 block text-sm font-bold">Password</span>
             <div className="flex items-center gap-3 rounded-xl border border-slate-200 px-4 py-3">
               <Lock className="h-5 w-5 text-slate-400" />
-              <input value={password} onChange={(event) => setPassword(event.target.value)} className="w-full outline-none" placeholder="Masukkan password" type="password" />
-              <Eye className="h-5 w-5 text-slate-400" />
+              <input value={password} onChange={(event) => setPassword(event.target.value)} className="w-full outline-none" placeholder="Masukkan password" type={showPassword ? 'text' : 'password'} required />
+              <button type="button" onClick={() => setShowPassword((current) => !current)} className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-emerald-700" aria-label={showPassword ? 'Sembunyikan password' : 'Tampilkan password'}>
+                <Eye className="h-5 w-5" />
+              </button>
             </div>
           </label>
           <div className="text-right text-sm font-bold text-emerald-700">Lupa Password?</div>

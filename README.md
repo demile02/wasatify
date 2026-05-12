@@ -23,6 +23,7 @@ Buat file `.env` dari `.env.example`, lalu isi:
 ```bash
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key
+VITE_AUTH_REDIRECT_URL=https://nama-project.vercel.app
 ```
 
 Tanpa env Supabase, aplikasi tetap berjalan sebagai demo UI. Login/register akan mengarahkan ke dashboard demo.
@@ -65,6 +66,8 @@ dist
 ```
 
 Tambahkan environment variable Supabase di Vercel Project Settings.
+
+Tambahkan juga `VITE_AUTH_REDIRECT_URL` dengan domain Vercel production agar link konfirmasi email tidak mengarah ke localhost.
 
 ## Google Login
 
