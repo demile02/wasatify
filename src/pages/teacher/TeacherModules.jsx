@@ -3,30 +3,43 @@ import { Edit3, Plus, Trash2 } from 'lucide-react';
 import { DashboardLayout } from '../../layouts/DashboardLayout';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
-import { modules as initialModules } from '../../services/demoData';
-import { supabase } from '../../lib/supabase';
+import { createModule, deleteModule } from '../../services/learningService';
+import { useModules } from '../../hooks/useModules';
+import { useAuth } from '../../hooks/useAuth';
 
 export function TeacherModules() {
-  const [modules, setModules] = useState(initialModules);
+  const { user } = useAuth();
+  const { modules, loading, error, reload } = useModules();
   const [draft, setDraft] = useState({ title: '', description: '', duration: '15 menit' });
+  const [formError, setFormError] = useState('');
+  const [saving, setSaving] = useState(false);
 
   async function addModule(event) {
     event.preventDefault();
-    const next = { id: modules.length + 1, ...draft, progress: 0, status: 'Draft', locked: false };
-    setModules((current) => [next, ...current]);
-    if (supabase) {
-      await supabase.from('modules').insert({
-        title: draft.title,
-        description: draft.description,
-        duration: draft.duration,
-        order_number: modules.length + 1,
-      });
+    setFormError('');
+    setSaving(true);
+    try {
+      await createModule(
+        {
+          ...draft,
+          order_number: modules.length + 1,
+        },
+        user?.id,
+      );
+      setDraft({ title: '', description: '', duration: '15 menit' });
+      await reload();
+    } catch (nextError) {
+      setFormError(nextError.message || 'Modul gagal disimpan.');
+    } finally {
+      setSaving(false);
     }
-    setDraft({ title: '', description: '', duration: '15 menit' });
   }
 
-  function removeModule(id) {
-    setModules((current) => current.filter((item) => item.id !== id));
+  async function removeModule(id) {
+    const confirmed = window.confirm('Hapus modul ini? Progress dan konten terkait juga bisa terdampak.');
+    if (!confirmed) return;
+    await deleteModule(id);
+    await reload();
   }
 
   return (
@@ -55,7 +68,8 @@ export function TeacherModules() {
                 <option>30 menit</option>
               </select>
             </label>
-            <Button className="w-full"><Plus className="h-4 w-4" /> Simpan & Lanjut</Button>
+            {formError && <p className="rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-600">{formError}</p>}
+            <Button className="w-full" disabled={saving}><Plus className="h-4 w-4" /> {saving ? 'Menyimpan...' : 'Simpan & Lanjut'}</Button>
           </form>
         </Card>
         <Card>
@@ -63,23 +77,31 @@ export function TeacherModules() {
             <h2 className="font-display text-xl font-bold">Daftar Modul</h2>
             <span className="rounded-full bg-emerald-50 px-3 py-1 text-sm font-bold text-emerald-700">{modules.length} modul</span>
           </div>
+          {error && <p className="mb-4 rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-600">{error}</p>}
+          {loading && <p className="text-sm font-semibold text-slate-500">Memuat modul...</p>}
           <div className="space-y-3">
-            {modules.map((module) => (
+            {modules.map((module, index) => (
               <div key={module.id} className="flex flex-col gap-4 rounded-2xl border border-slate-200 p-4 sm:flex-row sm:items-center">
                 <div className="grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-emerald-100 to-cream font-display text-xl font-bold text-emerald-800">
-                  {module.id}
+                  {module.order_number || index + 1}
                 </div>
                 <div className="min-w-0 flex-1">
                   <h3 className="truncate font-display font-bold">{module.title}</h3>
                   <p className="line-clamp-2 text-sm text-slate-500">{module.description}</p>
-                  <p className="mt-1 text-xs font-bold text-emerald-700">{module.duration} · {module.status}</p>
+                  <p className="mt-1 text-xs font-bold text-emerald-700">{module.duration}</p>
                 </div>
                 <div className="flex gap-2">
-                  <button className="rounded-xl border border-slate-200 p-3 text-emerald-700"><Edit3 className="h-4 w-4" /></button>
-                  <button onClick={() => removeModule(module.id)} className="rounded-xl border border-red-100 p-3 text-red-500"><Trash2 className="h-4 w-4" /></button>
+                  <button type="button" title="Edit modul" className="rounded-xl border border-slate-200 p-3 text-emerald-700"><Edit3 className="h-4 w-4" /></button>
+                  <button type="button" onClick={() => removeModule(module.id)} title="Hapus modul" className="rounded-xl border border-red-100 p-3 text-red-500"><Trash2 className="h-4 w-4" /></button>
                 </div>
               </div>
             ))}
+            {!loading && modules.length === 0 && (
+              <div className="rounded-2xl bg-slate-50 p-5">
+                <p className="font-bold">Belum ada modul.</p>
+                <p className="mt-2 text-sm text-slate-500">Gunakan form di kiri untuk membuat modul pertama.</p>
+              </div>
+            )}
           </div>
         </Card>
       </div>

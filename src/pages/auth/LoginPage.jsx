@@ -1,30 +1,73 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Eye, Lock, Mail, UserRound, GraduationCap } from 'lucide-react';
 import { AuthShell } from './AuthShell';
 import { Button } from '../../components/ui/Button';
 import { isSupabaseConfigured, supabase } from '../../lib/supabase';
+import { useAuth } from '../../hooks/useAuth';
 
 export function LoginPage() {
   const [role, setRole] = useState('student');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
+  const { isAuthenticated, profile, refreshProfile } = useAuth();
+
+  useEffect(() => {
+    if (isAuthenticated && profile?.role) {
+      navigate(profile.role === 'teacher' ? '/guru' : '/siswa', { replace: true });
+    }
+  }, [isAuthenticated, profile?.role, navigate]);
 
   async function handleLogin(event) {
     event.preventDefault();
-    if (supabase) {
-      await supabase.auth.signInWithPassword({ email, password });
+    setError('');
+
+    if (!isSupabaseConfigured) {
+      setError('Supabase belum dikonfigurasi. Isi VITE_SUPABASE_URL dan VITE_SUPABASE_ANON_KEY dulu.');
+      return;
     }
-    navigate(role === 'teacher' ? '/guru' : '/siswa');
+
+    setSubmitting(true);
+    const { data, error: loginError } = await supabase.auth.signInWithPassword({ email, password });
+
+    if (loginError) {
+      setSubmitting(false);
+      setError(loginError.message || 'Email atau password tidak valid.');
+      return;
+    }
+
+    let profile = null;
+    try {
+      profile = await refreshProfile();
+    } catch (profileError) {
+      console.error(profileError);
+    }
+
+    if (!profile && data.user) {
+      const { data: foundProfile } = await supabase.from('users').select('*').eq('id', data.user.id).maybeSingle();
+      profile = foundProfile;
+    }
+
+    if (profile?.role && profile.role !== role) {
+      setSubmitting(false);
+      setError(`Akun ini terdaftar sebagai ${profile.role === 'teacher' ? 'guru' : 'siswa'}. Pilih tab login yang sesuai.`);
+      await supabase.auth.signOut();
+      return;
+    }
+
+    navigate(profile?.role === 'teacher' || role === 'teacher' ? '/guru' : '/siswa', { replace: true });
   }
 
   async function handleGoogleLogin() {
     if (!isSupabaseConfigured) {
-      navigate(role === 'teacher' ? '/guru' : '/siswa');
+      setError('Supabase belum dikonfigurasi. Google login belum bisa dipakai.');
       return;
     }
 
+    window.localStorage.setItem('wasatify.pendingRole', role);
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -82,7 +125,8 @@ export function LoginPage() {
             </div>
           </label>
           <div className="text-right text-sm font-bold text-emerald-700">Lupa Password?</div>
-          <Button className="w-full" type="submit">Masuk</Button>
+          {error && <p className="rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-600">{error}</p>}
+          <Button className="w-full" type="submit" disabled={submitting}>{submitting ? 'Memproses...' : 'Masuk'}</Button>
         </form>
         <div className="my-6 flex items-center gap-4 text-sm text-slate-400">
           <span className="h-px flex-1 bg-slate-200" /> atau masuk dengan <span className="h-px flex-1 bg-slate-200" />

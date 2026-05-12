@@ -10,6 +10,7 @@ import { StudentQuiz } from './pages/student/StudentQuiz';
 import { StudentReflection } from './pages/student/StudentReflection';
 import { TeacherDashboard } from './pages/teacher/TeacherDashboard';
 import { TeacherModules } from './pages/teacher/TeacherModules';
+import { ProtectedRoute } from './components/ProtectedRoute';
 
 export default function App() {
   return (
@@ -19,12 +20,12 @@ export default function App() {
       <Route path="/register" element={<RegisterChoicePage />} />
       <Route path="/register/siswa" element={<RegisterStudentPage />} />
       <Route path="/register/guru" element={<RegisterTeacherPage />} />
-      <Route path="/siswa" element={<StudentDashboard />} />
-      <Route path="/siswa/modul" element={<StudentModules />} />
-      <Route path="/siswa/quiz" element={<StudentQuiz />} />
-      <Route path="/siswa/refleksi" element={<StudentReflection />} />
-      <Route path="/guru" element={<TeacherDashboard />} />
-      <Route path="/guru/modul" element={<TeacherModules />} />
+      <Route path="/siswa" element={<ProtectedRoute role="student"><StudentDashboard /></ProtectedRoute>} />
+      <Route path="/siswa/modul" element={<ProtectedRoute role="student"><StudentModules /></ProtectedRoute>} />
+      <Route path="/siswa/quiz" element={<ProtectedRoute role="student"><StudentQuiz /></ProtectedRoute>} />
+      <Route path="/siswa/refleksi" element={<ProtectedRoute role="student"><StudentReflection /></ProtectedRoute>} />
+      <Route path="/guru" element={<ProtectedRoute role="teacher"><TeacherDashboard /></ProtectedRoute>} />
+      <Route path="/guru/modul" element={<ProtectedRoute role="teacher"><TeacherModules /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

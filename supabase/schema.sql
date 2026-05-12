@@ -70,6 +70,35 @@ create table if not exists public.announcements (
   created_at timestamptz not null default now()
 );
 
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.users (id, name, email, role, class_name)
+  values (
+    new.id,
+    coalesce(new.raw_user_meta_data->>'name', new.raw_user_meta_data->>'full_name', split_part(new.email, '@', 1)),
+    new.email,
+    coalesce(new.raw_user_meta_data->>'role', 'student'),
+    new.raw_user_meta_data->>'class_name'
+  )
+  on conflict (id) do update
+    set name = excluded.name,
+        email = excluded.email,
+        role = excluded.role,
+        class_name = excluded.class_name;
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+after insert on auth.users
+for each row execute function public.handle_new_user();
+
 alter table public.users enable row level security;
 alter table public.modules enable row level security;
 alter table public.module_contents enable row level security;
@@ -137,8 +166,8 @@ using (exists (select 1 from public.users where users.id = auth.uid() and users.
 create policy "Students manage own reflections"
 on public.reflections for all
 to authenticated
-using (auth.uid() = user_id or user_id is null)
-with check (auth.uid() = user_id or user_id is null);
+using (auth.uid() = user_id)
+with check (auth.uid() = user_id);
 
 create policy "Teachers read reflections"
 on public.reflections for select
@@ -165,3 +194,41 @@ values
   ('Refleksi Nilai', 'Menulis pemahaman diri dan rencana aksi sebagai pribadi moderat.', '10 menit', 5),
   ('Quiz Pemahaman', 'Uji pemahaman nilai-nilai Islam Wasathiyah secara interaktif.', '8 menit', 6)
 on conflict do nothing;
+
+with target_module as (
+  select id from public.modules where title = 'Quiz Pemahaman' order by order_number limit 1
+)
+insert into public.quizzes (module_id, question, option_a, option_b, option_c, option_d, correct_answer, explanation)
+select
+  target_module.id,
+  quiz.question,
+  quiz.option_a,
+  quiz.option_b,
+  quiz.option_c,
+  quiz.option_d,
+  quiz.correct_answer,
+  quiz.explanation
+from target_module,
+(values
+  (
+    'Manakah yang termasuk contoh sikap tasamuh dalam kehidupan sehari-hari?',
+    'Memaksakan pendapat kepada orang lain',
+    'Menghargai perbedaan pendapat dan keyakinan',
+    'Menganggap diri paling benar',
+    'Menghindari diskusi dengan orang berbeda pendapat',
+    'b',
+    'Tasamuh berarti toleran, lapang dada, dan menghargai perbedaan dengan tetap memegang prinsip kebaikan.'
+  ),
+  (
+    'Apa makna tawazun dalam prinsip moderasi beragama?',
+    'Keseimbangan antara ilmu, amal, dunia, dan akhirat',
+    'Mengikuti semua informasi tanpa memeriksa sumber',
+    'Menolak semua perbedaan',
+    'Mengutamakan emosi saat berdakwah',
+    'a',
+    'Tawazun menuntun seseorang bersikap seimbang dan tidak berlebihan.'
+  )
+) as quiz(question, option_a, option_b, option_c, option_d, correct_answer, explanation)
+where not exists (
+  select 1 from public.quizzes where public.quizzes.question = quiz.question
+);

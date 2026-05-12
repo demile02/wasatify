@@ -4,14 +4,18 @@ import { DashboardLayout } from '../../layouts/DashboardLayout';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { activities, classProgress, teacherStats } from '../../services/demoData';
+import { useModules } from '../../hooks/useModules';
 
 export function TeacherDashboard() {
+  const { modules } = useModules();
+  const stats = teacherStats.map((stat) => (stat.label === 'Total Modul' ? { ...stat, value: String(modules.length), hint: 'Modul aktif' } : stat));
+
   return (
     <DashboardLayout role="teacher" title="Dashboard Guru" subtitle="Kelola pembelajaran Islam Wasathiyah dengan lebih efektif.">
       <div className="grid gap-6 xl:grid-cols-[1.5fr_0.8fr]">
         <div className="space-y-6">
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            {teacherStats.map((stat) => {
+            {stats.map((stat) => {
               const Icon = stat.icon;
               return (
                 <Card key={stat.label}>

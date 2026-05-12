@@ -1,13 +1,23 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Eye, Lock, Mail, User } from 'lucide-react';
 import { AuthShell } from './AuthShell';
 import { Button } from '../../components/ui/Button';
-import { supabase } from '../../lib/supabase';
+import { isSupabaseConfigured, supabase } from '../../lib/supabase';
+import { useAuth } from '../../hooks/useAuth';
 
 export function RegisterForm({ role, title, fieldLabel, fieldPlaceholder, button }) {
   const [form, setForm] = useState({ name: '', email: '', extra: '', password: '', confirm: '' });
+  const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
+  const { isAuthenticated, profile } = useAuth();
+
+  useEffect(() => {
+    if (isAuthenticated && profile?.role) {
+      navigate(profile.role === 'teacher' ? '/guru' : '/siswa', { replace: true });
+    }
+  }, [isAuthenticated, profile?.role, navigate]);
 
   function update(field, value) {
     setForm((current) => ({ ...current, [field]: value }));
@@ -15,23 +25,66 @@ export function RegisterForm({ role, title, fieldLabel, fieldPlaceholder, button
 
   async function handleRegister(event) {
     event.preventDefault();
-    if (supabase) {
-      const { data } = await supabase.auth.signUp({
-        email: form.email,
-        password: form.password,
-        options: { data: { name: form.name, role, class_name: role === 'student' ? form.extra : null, subject: role === 'teacher' ? form.extra : null } },
-      });
-      if (data.user) {
-        await supabase.from('users').upsert({
-          id: data.user.id,
+    setError('');
+
+    if (!isSupabaseConfigured) {
+      setError('Supabase belum dikonfigurasi. Isi environment variable sebelum publik.');
+      return;
+    }
+
+    if (form.password.length < 6) {
+      setError('Password minimal 6 karakter.');
+      return;
+    }
+
+    if (form.password !== form.confirm) {
+      setError('Konfirmasi password tidak sama.');
+      return;
+    }
+
+    setSubmitting(true);
+    const { data, error: signUpError } = await supabase.auth.signUp({
+      email: form.email,
+      password: form.password,
+      options: {
+        data: {
           name: form.name,
-          email: form.email,
           role,
           class_name: role === 'student' ? form.extra : null,
-        });
+          subject: role === 'teacher' ? form.extra : null,
+        },
+      },
+    });
+
+    if (signUpError) {
+      setSubmitting(false);
+      setError(signUpError.message || 'Pendaftaran gagal.');
+      return;
+    }
+
+    if (data.session && data.user) {
+      const { error: profileError } = await supabase.from('users').upsert({
+        id: data.user.id,
+        name: form.name,
+        email: form.email,
+        role,
+        class_name: role === 'student' ? form.extra : null,
+      });
+
+      if (profileError) {
+        setSubmitting(false);
+        setError(profileError.message || 'Profil gagal dibuat.');
+        return;
       }
     }
-    navigate(role === 'teacher' ? '/guru' : '/siswa');
+
+    if (!data.session) {
+      setSubmitting(false);
+      setError('Akun dibuat. Silakan cek email untuk konfirmasi, lalu login.');
+      return;
+    }
+
+    navigate(role === 'teacher' ? '/guru' : '/siswa', { replace: true });
   }
 
   return (
@@ -54,7 +107,8 @@ export function RegisterForm({ role, title, fieldLabel, fieldPlaceholder, button
           <Field label={fieldLabel} value={form.extra} onChange={(value) => update('extra', value)} placeholder={fieldPlaceholder} />
           <Field icon={Lock} label="Password" type="password" value={form.password} onChange={(value) => update('password', value)} placeholder="Buat password" trailing={<Eye className="h-4 w-4 text-slate-400" />} />
           <Field icon={Lock} label="Konfirmasi Password" type="password" value={form.confirm} onChange={(value) => update('confirm', value)} placeholder="Ulangi password" trailing={<Eye className="h-4 w-4 text-slate-400" />} />
-          <Button className="w-full" type="submit">{button}</Button>
+          {error && <p className="rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-600">{error}</p>}
+          <Button className="w-full" type="submit" disabled={submitting}>{submitting ? 'Mendaftarkan...' : button}</Button>
         </form>
         <p className="mt-6 text-center text-sm text-slate-500">
           Sudah punya akun? <Link className="font-bold text-emerald-700" to="/login">Masuk di sini</Link>

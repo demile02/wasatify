@@ -34,6 +34,8 @@ Tanpa env Supabase, aplikasi tetap berjalan sebagai demo UI. Login/register akan
 3. Jalankan isi `supabase/schema.sql`.
 4. Aktifkan provider Auth yang dibutuhkan di dashboard Supabase.
 
+Jalankan ulang `supabase/schema.sql` setiap kali ada update schema di repo. Versi terbaru membuat profile `users` otomatis dari Supabase Auth, termasuk akun Google OAuth.
+
 ## Halaman Demo
 
 - `/` landing page

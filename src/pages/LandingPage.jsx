@@ -110,7 +110,7 @@ export function LandingPage() {
               <p className="font-bold text-emerald-700">Fitur utama</p>
               <h2 className="font-display text-3xl font-extrabold">Dirancang untuk belajar singkat, konsisten, dan bermakna.</h2>
             </div>
-            <Link to="/siswa" className="text-sm font-bold text-emerald-700">Lihat demo dashboard →</Link>
+            <Link to="/siswa" className="text-sm font-bold text-emerald-700">Lihat dashboard →</Link>
           </div>
           <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-4">
             {features.map((feature) => {

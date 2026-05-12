@@ -1,4 +1,4 @@
-import { Link, NavLink } from 'react-router-dom';
+import { Link, NavLink, useNavigate } from 'react-router-dom';
 import {
   Bell,
   BookOpen,
@@ -18,6 +18,7 @@ import {
 import { motion } from 'framer-motion';
 import { Logo } from '../components/ui/Logo';
 import { cn } from '../utils/cn';
+import { useAuth } from '../hooks/useAuth';
 
 const iconMap = {
   home: Home,
@@ -56,6 +57,21 @@ export const teacherNav = [
 export function DashboardLayout({ role = 'student', title, subtitle, children }) {
   const isTeacher = role === 'teacher';
   const navItems = isTeacher ? teacherNav : studentNav;
+  const { profile, signOut } = useAuth();
+  const navigate = useNavigate();
+  const displayName = profile?.name || (isTeacher ? 'Guru WASATIFY' : 'Siswa WASATIFY');
+  const initials = displayName
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((word) => word[0])
+    .join('')
+    .toUpperCase();
+
+  async function handleLogout() {
+    await signOut();
+    navigate('/login', { replace: true });
+  }
 
   return (
     <div className="min-h-screen bg-[#fbfaf6]">
@@ -87,14 +103,14 @@ export function DashboardLayout({ role = 'student', title, subtitle, children })
           <div className="mt-auto rounded-2xl bg-white/10 p-4">
             <div className="flex items-center gap-3">
               <div className="grid h-11 w-11 place-items-center rounded-full bg-cream text-emerald-900">
-                {isTeacher ? 'AF' : 'AA'}
+                {initials || 'WA'}
               </div>
               <div>
-                <p className="text-sm font-bold">{isTeacher ? 'Ust. Ahmad Fauzan' : 'Ali Akbar'}</p>
-                <p className="text-xs text-emerald-50/70">{isTeacher ? 'Guru PAI' : 'Siswa MA'}</p>
+                <p className="text-sm font-bold">{displayName}</p>
+                <p className="text-xs text-emerald-50/70">{isTeacher ? 'Guru' : profile?.class_name || 'Siswa MA'}</p>
               </div>
             </div>
-            <button className="mt-4 flex items-center gap-2 text-sm font-semibold text-emerald-50/80">
+            <button onClick={handleLogout} className="mt-4 flex items-center gap-2 text-sm font-semibold text-emerald-50/80">
               <LogOut className="h-4 w-4" /> Keluar
             </button>
           </div>
@@ -107,7 +123,7 @@ export function DashboardLayout({ role = 'student', title, subtitle, children })
                 <Menu className="h-6 w-6" />
               </button>
               <div className="hidden lg:block">
-                <p className="text-sm font-semibold text-emerald-700">Assalamu'alaikum, {isTeacher ? 'Ust. Ahmad Fauzan' : 'Ali Akbar'} 👋</p>
+                <p className="text-sm font-semibold text-emerald-700">Assalamu'alaikum, {displayName}</p>
                 <h1 className="font-display text-2xl font-extrabold text-ink">{title}</h1>
                 <p className="text-sm text-slate-500">{subtitle}</p>
               </div>
@@ -128,7 +144,7 @@ export function DashboardLayout({ role = 'student', title, subtitle, children })
             className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8"
           >
             <div className="mb-5 lg:hidden">
-              <p className="text-sm font-semibold text-emerald-700">Assalamu'alaikum 👋</p>
+              <p className="text-sm font-semibold text-emerald-700">Assalamu'alaikum, {displayName}</p>
               <h1 className="font-display text-2xl font-extrabold text-ink">{title}</h1>
               <p className="text-sm text-slate-500">{subtitle}</p>
             </div>
