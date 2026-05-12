@@ -18,7 +18,7 @@ export function RegisterChoicePage() {
           <h1 className="font-display text-3xl font-extrabold">Buat Akun Baru</h1>
           <p className="mt-2 text-slate-500">Pilih jenis akun yang sesuai dengan peran Anda.</p>
         </div>
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid items-stretch gap-4 md:grid-cols-2">
           <RoleCard
             to="/register/siswa"
             icon={GraduationCap}
@@ -46,18 +46,18 @@ export function RegisterChoicePage() {
 
 function RoleCard({ to, icon: Icon, image, title, text, cta }) {
   return (
-    <div className="overflow-hidden rounded-2xl border border-emerald-900/10 bg-white text-center shadow-card">
+    <div className="flex h-full min-h-[420px] flex-col overflow-hidden rounded-2xl border border-emerald-900/10 bg-white text-center shadow-card">
       <div className="relative h-40 bg-gradient-to-br from-emerald-50 to-cream">
         <img src={image} alt="" className="absolute inset-0 h-full w-full object-cover object-top" />
         <div className="absolute bottom-3 right-3 grid h-12 w-12 place-items-center rounded-2xl bg-white/90 text-emerald-700 shadow-sm backdrop-blur">
           <Icon className="h-7 w-7" />
         </div>
       </div>
-      <div className="p-5">
+      <div className="flex flex-1 flex-col p-5">
         <h2 className="font-display text-xl font-bold">{title}</h2>
-        <p className="mx-auto mt-3 max-w-xs text-sm leading-6 text-slate-500">{text}</p>
-        <Link to={to}>
-          <Button className="mt-5 w-full px-3">{cta}</Button>
+        <p className="mx-auto mt-3 max-w-xs flex-1 text-sm leading-6 text-slate-500">{text}</p>
+        <Link to={to} className="mt-5 block">
+          <Button className="min-h-[64px] w-full px-3">{cta}</Button>
         </Link>
       </div>
     </div>
