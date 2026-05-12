@@ -49,7 +49,7 @@ export function StudentModules() {
                 </p>
               </div>
               <div className="relative min-h-64 overflow-hidden rounded-3xl bg-white">
-                <img src="/assets/wasatify-module-art.png" alt="" className="absolute inset-0 h-full w-full object-cover" />
+                <img src="/assets/wasatify-tawazun.png" alt="" className="absolute inset-0 h-full w-full object-cover" />
                 <div className="absolute inset-0 bg-gradient-to-t from-emerald-950/20 to-transparent" />
               </div>
             </div>
