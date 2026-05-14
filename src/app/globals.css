@@ -1,0 +1,94 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 100 23% 97%;
+    --foreground: 180 45% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 180 45% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 180 45% 11%;
+    --primary: 164 100% 21%;
+    --primary-foreground: 41 100% 96%;
+    --secondary: 150 39% 93%;
+    --secondary-foreground: 164 100% 21%;
+    --muted: 150 39% 93%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 38 77% 45%;
+    --accent-foreground: 180 45% 11%;
+    --destructive: 0 76% 56%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 164 100% 21%;
+    --cream: 40 100% 96%;
+    --gold: 38 77% 45%;
+    --ink: 180 45% 11%;
+    --mint: 150 39% 93%;
+    --surface: 0 0% 100%;
+    --dark-emerald: 168 100% 14%;
+    --sidebar: 168 100% 14%;
+    --sidebar-foreground: 40 100% 96%;
+    --sidebar-primary: 164 100% 21%;
+    --sidebar-primary-foreground: 40 100% 96%;
+    --sidebar-accent: 150 39% 93%;
+    --sidebar-accent-foreground: 164 100% 21%;
+    --sidebar-border: 164 45% 24%;
+    --sidebar-ring: 38 77% 45%;
+    --wasatify-emerald: #006b4f;
+    --wasatify-dark-emerald: #00483a;
+    --wasatify-mint: #e6f4ed;
+    --wasatify-cream: #fff8ea;
+    --wasatify-gold: #c98a1a;
+    --wasatify-text-dark: #102a2a;
+    --wasatify-text-muted: #64748b;
+    --wasatify-border: #e2e8f0;
+    --wasatify-surface: #ffffff;
+    --wasatify-background: #f8faf7;
+    --radius: 1rem;
+    --shadow-soft: 0 22px 70px rgba(16, 42, 42, 0.1);
+    --shadow-card: 0 14px 34px rgba(0, 107, 79, 0.08);
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    min-width: 320px;
+    background:
+      radial-gradient(circle at top left, hsl(var(--cream) / 0.85), transparent 34rem),
+      hsl(var(--background));
+  }
+
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+  }
+}
+
+@layer utilities {
+  .islamic-pattern {
+    background-image:
+      radial-gradient(hsl(var(--primary) / 0.06) 1px, transparent 1px),
+      linear-gradient(135deg, hsl(var(--gold) / 0.06), transparent 30%);
+    background-size: 18px 18px, 100% 100%;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}

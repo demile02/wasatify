@@ -1,5 +1,9 @@
 node_modules
 dist
+.next
+out
+.turbo
+.env*.local
 .env
 .env.local
 .vercel

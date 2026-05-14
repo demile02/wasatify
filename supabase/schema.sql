@@ -1,74 +1,371 @@
 create extension if not exists "pgcrypto";
 
-create table if not exists public.users (
+do $$
+begin
+  create type public.app_role as enum ('student', 'teacher', 'admin');
+exception
+  when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  create type public.module_status as enum ('draft', 'published', 'archived');
+exception
+  when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  create type public.lesson_type as enum ('article', 'video', 'infographic', 'reflection');
+exception
+  when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  create type public.question_type as enum ('single_choice', 'multiple_choice', 'true_false');
+exception
+  when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  create type public.quiz_status as enum ('draft', 'published', 'archived');
+exception
+  when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  create type public.learning_status as enum ('completed', 'in_progress', 'not_started', 'locked');
+exception
+  when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  create type public.quiz_attempt_status as enum ('in_progress', 'submitted', 'graded');
+exception
+  when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  create type public.media_kind as enum ('avatar', 'module_cover', 'lesson_attachment', 'other');
+exception
+  when duplicate_object then null;
+end $$;
+
+create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
-  name text not null,
-  email text unique not null,
-  role text not null check (role in ('student', 'teacher')),
-  school text,
+  role public.app_role not null default 'student',
+  full_name text not null,
+  email text unique,
+  avatar_url text,
+  school_name text,
   class_name text,
-  created_at timestamptz not null default now()
+  subject text,
+  bio text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
+
+alter table public.profiles
+  add column if not exists class_name text,
+  add column if not exists subject text;
+
+create table if not exists public.classes (
+  id uuid primary key default gen_random_uuid(),
+  teacher_id uuid not null references public.profiles(id) on delete cascade,
+  name text not null,
+  description text,
+  grade_level text,
+  join_code text not null unique default upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 8)),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.profiles
+  add column if not exists class_id uuid;
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'profiles_class_id_fkey'
+      and conrelid = 'public.profiles'::regclass
+  ) then
+    alter table public.profiles
+      add constraint profiles_class_id_fkey
+      foreign key (class_id) references public.classes(id) on delete set null;
+  end if;
+end $$;
 
 create table if not exists public.modules (
   id uuid primary key default gen_random_uuid(),
+  teacher_id uuid references public.profiles(id) on delete set null,
+  created_by uuid references public.profiles(id) on delete set null,
+  class_id uuid references public.classes(id) on delete set null,
   title text not null,
+  slug text not null unique,
   description text not null,
-  thumbnail text,
-  duration text not null,
-  order_number integer not null default 1,
-  created_by uuid references public.users(id) on delete set null,
-  created_at timestamptz not null default now()
+  cover_image_path text,
+  tags text[] not null default '{}'::text[],
+  status public.module_status not null default 'draft',
+  is_public boolean not null default true,
+  estimated_minutes integer not null default 15 check (estimated_minutes > 0),
+  order_index integer not null default 1,
+  published_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
 
-create table if not exists public.module_contents (
+alter table public.modules
+  add column if not exists tags text[] not null default '{}'::text[],
+  add column if not exists created_by uuid references public.profiles(id) on delete set null;
+
+update public.modules
+set created_by = teacher_id
+where created_by is null
+  and teacher_id is not null;
+
+create table if not exists public.media_assets (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid references public.profiles(id) on delete set null,
+  module_id uuid references public.modules(id) on delete cascade,
+  bucket text not null,
+  path text not null,
+  public_url text,
+  mime_type text,
+  size_bytes bigint check (size_bytes is null or size_bytes >= 0),
+  kind public.media_kind not null default 'other',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (bucket, path)
+);
+
+create table if not exists public.lessons (
   id uuid primary key default gen_random_uuid(),
   module_id uuid not null references public.modules(id) on delete cascade,
-  content_type text not null check (content_type in ('text', 'video', 'infographic', 'reflection')),
+  media_asset_id uuid references public.media_assets(id) on delete set null,
   title text not null,
-  body text,
-  media_url text,
-  order_number integer not null default 1
+  slug text not null,
+  type public.lesson_type not null default 'article',
+  content text,
+  video_url text,
+  infographic_url text,
+  order_index integer not null default 1,
+  estimated_minutes integer not null default 5 check (estimated_minutes > 0),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (module_id, slug)
 );
+
+alter table public.lessons
+  add column if not exists infographic_url text;
 
 create table if not exists public.quizzes (
   id uuid primary key default gen_random_uuid(),
   module_id uuid not null references public.modules(id) on delete cascade,
-  question text not null,
-  option_a text not null,
-  option_b text not null,
-  option_c text not null,
-  option_d text not null,
-  correct_answer text not null check (correct_answer in ('a', 'b', 'c', 'd')),
-  explanation text
+  teacher_id uuid references public.profiles(id) on delete set null,
+  title text not null,
+  description text,
+  status public.quiz_status not null default 'draft',
+  passing_score integer not null default 70 check (passing_score between 0 and 100),
+  max_attempts integer not null default 3 check (max_attempts > 0),
+  time_limit_seconds integer check (time_limit_seconds is null or time_limit_seconds > 0),
+  is_published boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (module_id, title)
 );
 
-create table if not exists public.user_progress (
+alter table public.quizzes
+  add column if not exists status public.quiz_status not null default 'draft';
+
+update public.quizzes
+set status = case
+  when is_published then 'published'::public.quiz_status
+  else status
+end;
+
+create table if not exists public.quiz_questions (
   id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references public.users(id) on delete cascade,
+  quiz_id uuid not null references public.quizzes(id) on delete cascade,
+  question_type public.question_type not null default 'single_choice',
+  question_text text not null,
+  options jsonb not null default '[]'::jsonb check (jsonb_typeof(options) = 'array'),
+  correct_answer jsonb not null check (jsonb_typeof(correct_answer) = 'object'),
+  explanation text,
+  show_explanation boolean not null default true,
+  points integer not null default 10 check (points > 0),
+  order_index integer not null default 1,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (quiz_id, order_index)
+);
+
+alter table public.quiz_questions
+  add column if not exists show_explanation boolean not null default true;
+
+create table if not exists public.module_progress (
+  id uuid primary key default gen_random_uuid(),
+  student_id uuid not null references public.profiles(id) on delete cascade,
   module_id uuid not null references public.modules(id) on delete cascade,
-  completed boolean not null default false,
-  quiz_score integer default 0 check (quiz_score between 0 and 100),
+  status public.learning_status not null default 'not_started',
+  progress_percent integer not null default 0 check (progress_percent between 0 and 100),
+  started_at timestamptz,
   completed_at timestamptz,
-  unique (user_id, module_id)
+  last_accessed_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (student_id, module_id)
+);
+
+create table if not exists public.lesson_progress (
+  id uuid primary key default gen_random_uuid(),
+  student_id uuid not null references public.profiles(id) on delete cascade,
+  module_id uuid not null references public.modules(id) on delete cascade,
+  lesson_id uuid not null references public.lessons(id) on delete cascade,
+  completed_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (student_id, lesson_id)
+);
+
+create table if not exists public.quiz_attempts (
+  id uuid primary key default gen_random_uuid(),
+  quiz_id uuid not null references public.quizzes(id) on delete cascade,
+  student_id uuid not null references public.profiles(id) on delete cascade,
+  status public.quiz_attempt_status not null default 'in_progress',
+  answers jsonb not null default '{}'::jsonb check (jsonb_typeof(answers) = 'object'),
+  score numeric(5,2) check (score is null or (score >= 0 and score <= 100)),
+  total_questions integer check (total_questions is null or total_questions >= 0),
+  correct_answers integer check (correct_answers is null or correct_answers >= 0),
+  started_at timestamptz not null default now(),
+  submitted_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
 
 create table if not exists public.reflections (
   id uuid primary key default gen_random_uuid(),
-  user_id uuid references public.users(id) on delete cascade,
-  module_id uuid references public.modules(id) on delete cascade,
+  student_id uuid not null references public.profiles(id) on delete cascade,
+  module_id uuid not null references public.modules(id) on delete cascade,
   reflection_text text not null,
   action_plan text,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (student_id, module_id)
+);
+
+create table if not exists public.achievements (
+  id uuid primary key default gen_random_uuid(),
+  code text not null unique,
+  title text not null,
+  description text not null,
+  icon text,
+  criteria jsonb not null default '{}'::jsonb check (jsonb_typeof(criteria) = 'object'),
+  xp_reward integer not null default 0 check (xp_reward >= 0),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.student_achievements (
+  id uuid primary key default gen_random_uuid(),
+  student_id uuid not null references public.profiles(id) on delete cascade,
+  achievement_id uuid not null references public.achievements(id) on delete cascade,
+  earned_at timestamptz not null default now(),
+  unique (student_id, achievement_id)
 );
 
 create table if not exists public.announcements (
   id uuid primary key default gen_random_uuid(),
+  teacher_id uuid references public.profiles(id) on delete set null,
+  class_id uuid references public.classes(id) on delete cascade,
   title text not null,
   content text not null,
-  created_by uuid references public.users(id) on delete set null,
-  created_at timestamptz not null default now()
+  priority text not null default 'normal' check (priority in ('low', 'normal', 'high')),
+  published_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
+
+create or replace function public.set_updated_at()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+drop trigger if exists set_profiles_updated_at on public.profiles;
+create trigger set_profiles_updated_at
+before update on public.profiles
+for each row execute function public.set_updated_at();
+
+drop trigger if exists set_classes_updated_at on public.classes;
+create trigger set_classes_updated_at
+before update on public.classes
+for each row execute function public.set_updated_at();
+
+drop trigger if exists set_modules_updated_at on public.modules;
+create trigger set_modules_updated_at
+before update on public.modules
+for each row execute function public.set_updated_at();
+
+drop trigger if exists set_media_assets_updated_at on public.media_assets;
+create trigger set_media_assets_updated_at
+before update on public.media_assets
+for each row execute function public.set_updated_at();
+
+drop trigger if exists set_lessons_updated_at on public.lessons;
+create trigger set_lessons_updated_at
+before update on public.lessons
+for each row execute function public.set_updated_at();
+
+drop trigger if exists set_quizzes_updated_at on public.quizzes;
+create trigger set_quizzes_updated_at
+before update on public.quizzes
+for each row execute function public.set_updated_at();
+
+drop trigger if exists set_quiz_questions_updated_at on public.quiz_questions;
+create trigger set_quiz_questions_updated_at
+before update on public.quiz_questions
+for each row execute function public.set_updated_at();
+
+drop trigger if exists set_module_progress_updated_at on public.module_progress;
+create trigger set_module_progress_updated_at
+before update on public.module_progress
+for each row execute function public.set_updated_at();
+
+drop trigger if exists set_lesson_progress_updated_at on public.lesson_progress;
+create trigger set_lesson_progress_updated_at
+before update on public.lesson_progress
+for each row execute function public.set_updated_at();
+
+drop trigger if exists set_quiz_attempts_updated_at on public.quiz_attempts;
+create trigger set_quiz_attempts_updated_at
+before update on public.quiz_attempts
+for each row execute function public.set_updated_at();
+
+drop trigger if exists set_reflections_updated_at on public.reflections;
+create trigger set_reflections_updated_at
+before update on public.reflections
+for each row execute function public.set_updated_at();
+
+drop trigger if exists set_achievements_updated_at on public.achievements;
+create trigger set_achievements_updated_at
+before update on public.achievements
+for each row execute function public.set_updated_at();
+
+drop trigger if exists set_announcements_updated_at on public.announcements;
+create trigger set_announcements_updated_at
+before update on public.announcements
+for each row execute function public.set_updated_at();
 
 create or replace function public.handle_new_user()
 returns trigger
@@ -76,20 +373,41 @@ language plpgsql
 security definer
 set search_path = public
 as $$
+declare
+  requested_role text;
+  safe_role public.app_role;
 begin
-  insert into public.users (id, name, email, role, class_name)
+  requested_role := new.raw_user_meta_data->>'role';
+  safe_role := case
+    when requested_role in ('student', 'teacher', 'admin') then requested_role::public.app_role
+    else 'student'::public.app_role
+  end;
+
+  insert into public.profiles (id, role, full_name, email, avatar_url, school_name, class_name, subject)
   values (
     new.id,
-    coalesce(new.raw_user_meta_data->>'name', new.raw_user_meta_data->>'full_name', split_part(new.email, '@', 1)),
+    safe_role,
+    coalesce(
+      nullif(new.raw_user_meta_data->>'full_name', ''),
+      nullif(new.raw_user_meta_data->>'name', ''),
+      nullif(split_part(coalesce(new.email, ''), '@', 1), ''),
+      'Pengguna WASATIFY'
+    ),
     new.email,
-    coalesce(new.raw_user_meta_data->>'role', 'student'),
-    new.raw_user_meta_data->>'class_name'
+    new.raw_user_meta_data->>'avatar_url',
+    new.raw_user_meta_data->>'school_name',
+    nullif(new.raw_user_meta_data->>'class_name', ''),
+    nullif(new.raw_user_meta_data->>'subject', '')
   )
   on conflict (id) do update
-    set name = excluded.name,
+    set full_name = excluded.full_name,
         email = excluded.email,
-        role = excluded.role,
-        class_name = excluded.class_name;
+        avatar_url = coalesce(excluded.avatar_url, public.profiles.avatar_url),
+        school_name = coalesce(excluded.school_name, public.profiles.school_name),
+        class_name = coalesce(excluded.class_name, public.profiles.class_name),
+        subject = coalesce(excluded.subject, public.profiles.subject),
+        updated_at = now();
+
   return new;
 end;
 $$;
@@ -99,141 +417,43 @@ create trigger on_auth_user_created
 after insert on auth.users
 for each row execute function public.handle_new_user();
 
-alter table public.users enable row level security;
-alter table public.modules enable row level security;
-alter table public.module_contents enable row level security;
-alter table public.quizzes enable row level security;
-alter table public.user_progress enable row level security;
-alter table public.reflections enable row level security;
-alter table public.announcements enable row level security;
+create index if not exists profiles_role_idx on public.profiles(role);
+create index if not exists profiles_class_id_idx on public.profiles(class_id);
 
-create policy "Users can read own profile"
-on public.users for select
-using (auth.uid() = id);
+create index if not exists classes_teacher_id_idx on public.classes(teacher_id);
 
-create policy "Teachers can read student profiles"
-on public.users for select
-to authenticated
-using (exists (select 1 from public.users teacher where teacher.id = auth.uid() and teacher.role = 'teacher'));
+create index if not exists modules_teacher_id_idx on public.modules(teacher_id);
+create index if not exists modules_created_by_idx on public.modules(created_by);
+create index if not exists modules_class_id_idx on public.modules(class_id);
+create index if not exists modules_status_idx on public.modules(status);
+create index if not exists modules_slug_idx on public.modules(slug);
 
-create policy "Users can update own profile"
-on public.users for update
-using (auth.uid() = id);
+create index if not exists media_assets_owner_id_idx on public.media_assets(owner_id);
+create index if not exists media_assets_module_id_idx on public.media_assets(module_id);
 
-create policy "Users can insert own profile"
-on public.users for insert
-with check (auth.uid() = id);
+create index if not exists lessons_module_id_idx on public.lessons(module_id);
 
-create policy "Authenticated users can read learning content"
-on public.modules for select
-to authenticated
-using (true);
+create index if not exists quizzes_module_id_idx on public.quizzes(module_id);
+create index if not exists quizzes_teacher_id_idx on public.quizzes(teacher_id);
+create index if not exists quizzes_status_idx on public.quizzes(status);
 
-create policy "Teachers can manage modules"
-on public.modules for all
-to authenticated
-using (exists (select 1 from public.users where users.id = auth.uid() and users.role = 'teacher'))
-with check (exists (select 1 from public.users where users.id = auth.uid() and users.role = 'teacher'));
+create index if not exists quiz_questions_quiz_id_idx on public.quiz_questions(quiz_id);
 
-create policy "Authenticated users can read module content"
-on public.module_contents for select
-to authenticated
-using (true);
+create index if not exists module_progress_student_id_idx on public.module_progress(student_id);
+create index if not exists module_progress_module_id_idx on public.module_progress(module_id);
 
-create policy "Teachers can manage module content"
-on public.module_contents for all
-to authenticated
-using (exists (select 1 from public.users where users.id = auth.uid() and users.role = 'teacher'))
-with check (exists (select 1 from public.users where users.id = auth.uid() and users.role = 'teacher'));
+create index if not exists lesson_progress_student_id_idx on public.lesson_progress(student_id);
+create index if not exists lesson_progress_module_id_idx on public.lesson_progress(module_id);
+create index if not exists lesson_progress_lesson_id_idx on public.lesson_progress(lesson_id);
 
-create policy "Authenticated users can read quizzes"
-on public.quizzes for select
-to authenticated
-using (true);
+create index if not exists quiz_attempts_student_id_idx on public.quiz_attempts(student_id);
+create index if not exists quiz_attempts_quiz_id_idx on public.quiz_attempts(quiz_id);
 
-create policy "Teachers can manage quizzes"
-on public.quizzes for all
-to authenticated
-using (exists (select 1 from public.users where users.id = auth.uid() and users.role = 'teacher'))
-with check (exists (select 1 from public.users where users.id = auth.uid() and users.role = 'teacher'));
+create index if not exists reflections_student_id_idx on public.reflections(student_id);
+create index if not exists reflections_module_id_idx on public.reflections(module_id);
 
-create policy "Students manage own progress"
-on public.user_progress for all
-to authenticated
-using (auth.uid() = user_id)
-with check (auth.uid() = user_id);
+create index if not exists student_achievements_student_id_idx on public.student_achievements(student_id);
+create index if not exists student_achievements_achievement_id_idx on public.student_achievements(achievement_id);
 
-create policy "Teachers read all progress"
-on public.user_progress for select
-to authenticated
-using (exists (select 1 from public.users where users.id = auth.uid() and users.role = 'teacher'));
-
-create policy "Students manage own reflections"
-on public.reflections for all
-to authenticated
-using (auth.uid() = user_id)
-with check (auth.uid() = user_id);
-
-create policy "Teachers read reflections"
-on public.reflections for select
-to authenticated
-using (exists (select 1 from public.users where users.id = auth.uid() and users.role = 'teacher'));
-
-create policy "Authenticated users can read announcements"
-on public.announcements for select
-to authenticated
-using (true);
-
-create policy "Teachers can manage announcements"
-on public.announcements for all
-to authenticated
-using (exists (select 1 from public.users where users.id = auth.uid() and users.role = 'teacher'))
-with check (exists (select 1 from public.users where users.id = auth.uid() and users.role = 'teacher'));
-
-insert into public.modules (title, description, duration, order_number)
-values
-  ('Apa Itu Islam Wasathiyah?', 'Memahami makna wasathiyah sebagai jalan tengah yang adil dan berimbang.', '12 menit', 1),
-  ('Prinsip Moderasi Beragama', 'Mengenal tawazun, tasamuh, i’tidal, dan syura dalam kehidupan sehari-hari.', '20 menit', 2),
-  ('Bahaya Ekstremisme Digital', 'Belajar memilah informasi keagamaan di media sosial secara kritis.', '15 menit', 3),
-  ('Islam dan Toleransi', 'Membangun adab berbeda pendapat dan hidup damai di masyarakat majemuk.', '18 menit', 4),
-  ('Refleksi Nilai', 'Menulis pemahaman diri dan rencana aksi sebagai pribadi moderat.', '10 menit', 5),
-  ('Quiz Pemahaman', 'Uji pemahaman nilai-nilai Islam Wasathiyah secara interaktif.', '8 menit', 6)
-on conflict do nothing;
-
-with target_module as (
-  select id from public.modules where title = 'Quiz Pemahaman' order by order_number limit 1
-)
-insert into public.quizzes (module_id, question, option_a, option_b, option_c, option_d, correct_answer, explanation)
-select
-  target_module.id,
-  quiz.question,
-  quiz.option_a,
-  quiz.option_b,
-  quiz.option_c,
-  quiz.option_d,
-  quiz.correct_answer,
-  quiz.explanation
-from target_module,
-(values
-  (
-    'Manakah yang termasuk contoh sikap tasamuh dalam kehidupan sehari-hari?',
-    'Memaksakan pendapat kepada orang lain',
-    'Menghargai perbedaan pendapat dan keyakinan',
-    'Menganggap diri paling benar',
-    'Menghindari diskusi dengan orang berbeda pendapat',
-    'b',
-    'Tasamuh berarti toleran, lapang dada, dan menghargai perbedaan dengan tetap memegang prinsip kebaikan.'
-  ),
-  (
-    'Apa makna tawazun dalam prinsip moderasi beragama?',
-    'Keseimbangan antara ilmu, amal, dunia, dan akhirat',
-    'Mengikuti semua informasi tanpa memeriksa sumber',
-    'Menolak semua perbedaan',
-    'Mengutamakan emosi saat berdakwah',
-    'a',
-    'Tawazun menuntun seseorang bersikap seimbang dan tidak berlebihan.'
-  )
-) as quiz(question, option_a, option_b, option_c, option_d, correct_answer, explanation)
-where not exists (
-  select 1 from public.quizzes where public.quizzes.question = quiz.question
-);
+create index if not exists announcements_teacher_id_idx on public.announcements(teacher_id);
+create index if not exists announcements_class_id_idx on public.announcements(class_id);
