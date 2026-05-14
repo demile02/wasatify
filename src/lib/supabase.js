@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseUrl = normalizeSupabaseUrl(import.meta.env.VITE_SUPABASE_URL);
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const configuredRedirectUrl = import.meta.env.VITE_AUTH_REDIRECT_URL || import.meta.env.VITE_SITE_URL;
 
@@ -13,4 +13,8 @@ export const supabase = isSupabaseConfigured
 export function getAuthRedirectUrl(path = '/login') {
   const baseUrl = configuredRedirectUrl || window.location.origin;
   return `${baseUrl.replace(/\/$/, '')}${path}`;
+}
+
+function normalizeSupabaseUrl(url) {
+  return url?.replace(/\/rest\/v1\/?$/, '').replace(/\/$/, '');
 }

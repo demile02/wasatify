@@ -3,10 +3,12 @@ import { ArrowLeft } from 'lucide-react';
 import { Logo } from '../../components/ui/Logo';
 
 export function AuthShell({ children, backTo = '/', illustration = '/assets/wasatify-auth-student.png', panelTitle, panelText }) {
+  const hasIllustration = Boolean(illustration);
+
   return (
     <div className="pattern min-h-screen px-3 py-4 sm:px-5 sm:py-6">
-      <div className="mx-auto grid max-w-6xl overflow-hidden rounded-[2rem] border border-emerald-900/10 bg-white shadow-soft lg:min-h-[720px] lg:grid-cols-[0.92fr_1.08fr]">
-        <div className="flex min-h-[680px] flex-col p-6 sm:p-8 lg:p-10">
+      <div className={`mx-auto grid overflow-hidden rounded-[2rem] border border-emerald-900/10 bg-white shadow-soft ${hasIllustration ? 'max-w-6xl lg:min-h-[720px] lg:grid-cols-[0.92fr_1.08fr]' : 'max-w-4xl'}`}>
+        <div className={`flex flex-col p-6 sm:p-8 lg:p-10 ${hasIllustration ? 'min-h-[680px]' : 'min-h-[620px]'}`}>
           <div className="mb-5 flex items-center justify-between">
             <Logo />
             <Link to={backTo} className="inline-flex items-center gap-2 text-sm font-bold text-emerald-700">
@@ -15,7 +17,7 @@ export function AuthShell({ children, backTo = '/', illustration = '/assets/wasa
           </div>
           {children}
         </div>
-        {illustration && (
+        {hasIllustration && (
           <div className="hidden bg-gradient-to-br from-emerald-950 via-emerald-900 to-emerald-700 p-6 lg:block">
             <div className="relative h-full overflow-hidden rounded-[2rem] bg-gradient-to-br from-white via-emerald-50 to-cream">
               <img

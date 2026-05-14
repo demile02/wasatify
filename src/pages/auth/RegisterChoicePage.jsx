@@ -6,9 +6,7 @@ import { Button } from '../../components/ui/Button';
 export function RegisterChoicePage() {
   return (
     <AuthShell
-      illustration="/assets/wasatify-module-art.png"
-      panelTitle="Satu ruang belajar untuk siswa dan guru"
-      panelText="Pilih peran akun, lalu masuk ke pengalaman belajar yang sesuai: dashboard siswa atau dashboard pengelolaan guru."
+      illustration={false}
     >
       <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col justify-center">
         <div className="mb-7 text-center">

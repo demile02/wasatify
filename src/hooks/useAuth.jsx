@@ -82,15 +82,15 @@ export function AuthProvider({ children }) {
       };
     }
 
-    const { data: listener } = supabase.auth.onAuthStateChange(async (_event, nextSession) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);
       if (nextSession?.user) {
-        try {
-          await loadProfile(nextSession.user);
-        } catch (error) {
-          console.error('Failed to refresh profile', error);
-          setProfile(null);
-        }
+        setTimeout(() => {
+          loadProfile(nextSession.user).catch((error) => {
+            console.error('Failed to refresh profile', error);
+            setProfile(null);
+          });
+        }, 0);
       } else {
         setProfile(null);
       }

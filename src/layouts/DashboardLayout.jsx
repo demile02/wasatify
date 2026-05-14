@@ -1,4 +1,5 @@
-import { Link, NavLink, useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   Bell,
   BookOpen,
@@ -19,6 +20,7 @@ import { motion } from 'framer-motion';
 import { Logo } from '../components/ui/Logo';
 import { cn } from '../utils/cn';
 import { useAuth } from '../hooks/useAuth';
+import { rememberAccount } from '../utils/rememberedAccounts';
 
 const iconMap = {
   home: Home,
@@ -59,6 +61,8 @@ export function DashboardLayout({ role = 'student', title, subtitle, children })
   const navItems = isTeacher ? teacherNav : studentNav;
   const { profile, signOut } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const displayName = profile?.name || (isTeacher ? 'Guru WASATIFY' : 'Siswa WASATIFY');
   const initials = displayName
     .split(' ')
@@ -69,6 +73,12 @@ export function DashboardLayout({ role = 'student', title, subtitle, children })
     .toUpperCase();
 
   async function handleLogout() {
+    rememberAccount({
+      email: profile?.email,
+      name: profile?.name,
+      role: profile?.role,
+      className: profile?.class_name,
+    });
     await signOut();
     navigate('/login', { replace: true });
   }
@@ -81,16 +91,17 @@ export function DashboardLayout({ role = 'student', title, subtitle, children })
             <Logo light subtitle={isTeacher ? 'Guru Dashboard' : 'Siswa MA'} />
           </Link>
           <nav className="space-y-2">
-            {navItems.map((item) => {
+            {navItems.map((item, index) => {
               const Icon = iconMap[item.icon];
+              const isActiveItem = location.pathname === item.to && (item.to !== '/guru' || index === 0) && (item.to !== '/siswa' || index === 0);
               return (
                 <NavLink
                   key={item.label}
                   to={item.to}
-                  className={({ isActive }) =>
+                  className={() =>
                     cn(
                       'flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-emerald-50/85 transition',
-                      isActive ? 'bg-emerald-500/95 text-white shadow-card' : 'hover:bg-white/10',
+                      isActiveItem ? 'bg-emerald-500/95 text-white shadow-card' : 'hover:bg-white/10',
                     )
                   }
                 >
@@ -119,7 +130,12 @@ export function DashboardLayout({ role = 'student', title, subtitle, children })
         <main className="w-full lg:pl-64">
           <header className="sticky top-0 z-20 border-b border-emerald-900/10 bg-white/78 backdrop-blur-xl">
             <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-4 sm:px-6 lg:px-8">
-              <button className="rounded-xl p-2 text-emerald-900 lg:hidden">
+              <button
+                type="button"
+                onClick={() => setMobileMenuOpen(true)}
+                className="rounded-xl p-2 text-emerald-900 lg:hidden"
+                aria-label="Buka menu navigasi"
+              >
                 <Menu className="h-6 w-6" />
               </button>
               <div className="hidden lg:block">
@@ -153,15 +169,64 @@ export function DashboardLayout({ role = 'student', title, subtitle, children })
         </main>
       </div>
 
+      {mobileMenuOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <button
+            type="button"
+            className="absolute inset-0 bg-emerald-950/45"
+            onClick={() => setMobileMenuOpen(false)}
+            aria-label="Tutup menu"
+          />
+          <aside className="relative flex h-full w-72 max-w-[82vw] flex-col bg-gradient-to-b from-emerald-950 to-emerald-800 p-5 text-white shadow-soft">
+            <div className="mb-8 flex items-center justify-between gap-3">
+              <Logo light subtitle={isTeacher ? 'Guru Dashboard' : 'Siswa MA'} />
+              <button
+                type="button"
+                onClick={() => setMobileMenuOpen(false)}
+                className="rounded-xl bg-white/10 px-3 py-2 text-sm font-bold"
+              >
+                Tutup
+              </button>
+            </div>
+            <nav className="space-y-2">
+              {navItems.map((item, index) => {
+                const Icon = iconMap[item.icon];
+                const isActiveItem = location.pathname === item.to && (item.to !== '/guru' || index === 0) && (item.to !== '/siswa' || index === 0);
+                return (
+                  <NavLink
+                    key={item.label}
+                    to={item.to}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={() =>
+                      cn(
+                        'flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-emerald-50/85 transition',
+                        isActiveItem ? 'bg-emerald-500/95 text-white shadow-card' : 'hover:bg-white/10',
+                      )
+                    }
+                  >
+                    <Icon className="h-5 w-5" />
+                    {item.label}
+                  </NavLink>
+                );
+              })}
+            </nav>
+            <button onClick={handleLogout} className="mt-auto flex items-center gap-2 rounded-xl bg-white/10 px-4 py-3 text-sm font-semibold text-emerald-50/90">
+              <LogOut className="h-4 w-4" /> Keluar
+            </button>
+          </aside>
+        </div>
+      )}
+
       <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-emerald-900/10 bg-white px-2 py-2 shadow-soft lg:hidden">
-        {navItems.slice(0, 5).map((item) => {
+        {navItems.slice(0, 5).map((item, index) => {
           const Icon = iconMap[item.icon];
+          const isActiveItem = location.pathname === item.to && (item.to !== '/guru' || index === 0) && (item.to !== '/siswa' || index === 0);
           return (
             <NavLink
               key={item.label}
               to={item.to}
-              className={({ isActive }) =>
-                cn('flex flex-col items-center gap-1 rounded-xl px-2 py-2 text-[11px] font-bold', isActive ? 'text-emerald-700' : 'text-slate-500')
+              className={() =>
+                cn('flex flex-col items-center gap-1 rounded-xl px-2 py-2 text-[11px] font-bold', isActiveItem ? 'text-emerald-700' : 'text-slate-500')
               }
             >
               <Icon className="h-5 w-5" />

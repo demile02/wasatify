@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Eye, Lock, Mail, UserRound, GraduationCap } from 'lucide-react';
+import { Eye, Lock, Mail, UserRound, GraduationCap, X } from 'lucide-react';
 import { AuthShell } from './AuthShell';
 import { Button } from '../../components/ui/Button';
 import { getAuthRedirectUrl, isSupabaseConfigured, supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
+import { forgetRememberedAccount, getRememberedAccounts, rememberAccount } from '../../utils/rememberedAccounts';
 
 export function LoginPage() {
   const [role, setRole] = useState('student');
@@ -13,6 +14,7 @@ export function LoginPage() {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberedAccounts, setRememberedAccounts] = useState(() => getRememberedAccounts());
   const navigate = useNavigate();
   const { isAuthenticated, profile, refreshProfile } = useAuth();
 
@@ -31,35 +33,60 @@ export function LoginPage() {
       return;
     }
 
-    setSubmitting(true);
-    const { data, error: loginError } = await supabase.auth.signInWithPassword({ email, password });
-
-    if (loginError) {
-      setSubmitting(false);
-      setError(loginError.message || 'Email atau password tidak valid.');
-      return;
-    }
-
-    let profile = null;
     try {
-      profile = await refreshProfile();
-    } catch (profileError) {
-      console.error(profileError);
-    }
+      setSubmitting(true);
+      const { data, error: loginError } = await withLoginTimeout(
+        supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password,
+        }),
+      );
 
-    if (!profile && data.user) {
-      const { data: foundProfile } = await supabase.from('users').select('*').eq('id', data.user.id).maybeSingle();
-      profile = foundProfile;
-    }
+      if (loginError) {
+        setError(getLoginErrorMessage(loginError));
+        return;
+      }
 
-    if (profile?.role && profile.role !== role) {
+      let userProfile = null;
+      try {
+        userProfile = await refreshProfile();
+      } catch (profileError) {
+        console.error(profileError);
+      }
+
+      if (!userProfile && data.user) {
+        const { data: foundProfile, error: profileFetchError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', data.user.id)
+          .maybeSingle();
+
+        if (profileFetchError) {
+          throw profileFetchError;
+        }
+
+        userProfile = foundProfile;
+      }
+
+      if (userProfile?.role && userProfile.role !== role) {
+        setError(`Akun ini terdaftar sebagai ${userProfile.role === 'teacher' ? 'guru' : 'siswa'}. Pilih tab login yang sesuai.`);
+        await supabase.auth.signOut();
+        return;
+      }
+
+      setRememberedAccounts(rememberAccount({
+        email: data.user?.email || email.trim(),
+        name: userProfile?.name,
+        role: userProfile?.role || role,
+        className: userProfile?.class_name,
+      }));
+      navigate(userProfile?.role === 'teacher' || role === 'teacher' ? '/guru' : '/siswa', { replace: true });
+    } catch (loginException) {
+      console.error(loginException);
+      setError(getLoginErrorMessage(loginException));
+    } finally {
       setSubmitting(false);
-      setError(`Akun ini terdaftar sebagai ${profile.role === 'teacher' ? 'guru' : 'siswa'}. Pilih tab login yang sesuai.`);
-      await supabase.auth.signOut();
-      return;
     }
-
-    navigate(profile?.role === 'teacher' || role === 'teacher' ? '/guru' : '/siswa', { replace: true });
   }
 
   async function handleGoogleLogin() {
@@ -81,11 +108,25 @@ export function LoginPage() {
     });
   }
 
+  function chooseRememberedAccount(account) {
+    setRole(account.role || 'student');
+    setEmail(account.email);
+    setPassword('');
+    setError('');
+  }
+
+  function removeRememberedAccount(event, account) {
+    event.stopPropagation();
+    setRememberedAccounts(forgetRememberedAccount(account.email));
+    if (email === account.email) {
+      setEmail('');
+      setPassword('');
+    }
+  }
+
   return (
     <AuthShell
-      illustration="/assets/wasatify-auth-student.png"
-      panelTitle="Belajar singkat, konsisten, dan bermakna"
-      panelText="Masuk untuk melanjutkan modul, menjaga streak, menyelesaikan quiz, dan menulis refleksi nilai Wasathiyah."
+      illustration={false}
     >
       <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center">
         <div className="mb-8 text-center">
@@ -109,6 +150,44 @@ export function LoginPage() {
             <UserRound className="h-4 w-4" /> Login Guru
           </button>
         </div>
+        {rememberedAccounts.length > 0 && (
+          <div className="mb-6 rounded-2xl border border-emerald-900/10 bg-emerald-50/60 p-3">
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-sm font-bold text-emerald-900">Akun tersimpan</p>
+              <span className="text-xs font-semibold text-emerald-700">Klik untuk pilih akun</span>
+            </div>
+            <div className="space-y-2">
+              {rememberedAccounts.map((account) => (
+                <button
+                  key={account.email}
+                  type="button"
+                  onClick={() => chooseRememberedAccount(account)}
+                  className="flex w-full items-center gap-3 rounded-xl bg-white p-3 text-left shadow-sm transition hover:border-emerald-200 hover:bg-white/90"
+                >
+                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-emerald-100 text-sm font-extrabold text-emerald-800">
+                    {(account.name || account.email).slice(0, 2).toUpperCase()}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-bold text-ink">{account.name || account.email}</span>
+                    <span className="block truncate text-xs text-slate-500">{account.email} · {account.role === 'teacher' ? 'Guru' : 'Siswa'}</span>
+                  </span>
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    onClick={(event) => removeRememberedAccount(event, account)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') removeRememberedAccount(event, account);
+                    }}
+                    className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-500"
+                    aria-label={`Hapus akun ${account.email}`}
+                  >
+                    <X className="h-4 w-4" />
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         <form onSubmit={handleLogin} className="space-y-5">
           <label className="block">
             <span className="mb-2 block text-sm font-bold">Email</span>
@@ -158,4 +237,31 @@ export function LoginPage() {
       </div>
     </AuthShell>
   );
+}
+
+function withLoginTimeout(promise) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Login timeout')), 20000);
+    }),
+  ]);
+}
+
+function getLoginErrorMessage(error) {
+  const message = error?.message || '';
+
+  if (message.toLowerCase().includes('failed to fetch') || message === 'Login timeout') {
+    return 'Tidak bisa terhubung ke Supabase. Cek koneksi internet, URL Supabase, atau restart server lokal.';
+  }
+
+  if (message.toLowerCase().includes('invalid login credentials')) {
+    return 'Email atau password tidak valid.';
+  }
+
+  if (message.toLowerCase().includes('email not confirmed')) {
+    return 'Email belum dikonfirmasi. Cek inbox Gmail atau matikan Confirm email saat testing lokal.';
+  }
+
+  return message || 'Login gagal diproses. Coba lagi beberapa saat.';
 }

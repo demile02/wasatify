@@ -1,5 +1,6 @@
+import { useEffect } from 'react';
 import { ArrowRight, BookOpen, CheckCircle2, ShieldCheck, Users } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
@@ -7,8 +8,28 @@ import { LearningIllustration } from '../components/ui/Illustration';
 import { Logo } from '../components/ui/Logo';
 import { PageTransition } from '../components/PageTransition';
 import { features, modules } from '../services/demoData';
+import { useAuth } from '../hooks/useAuth';
 
 export function LandingPage() {
+  const { isAuthenticated, loading, profile } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (isAuthenticated && profile?.role) {
+      navigate(profile.role === 'teacher' ? '/guru' : '/siswa', { replace: true });
+    }
+  }, [isAuthenticated, navigate, profile?.role]);
+
+  if (loading || (isAuthenticated && !profile?.role)) {
+    return (
+      <div className="grid min-h-screen place-items-center bg-[#fbfaf6]">
+        <div className="rounded-2xl border border-emerald-900/10 bg-white px-6 py-4 text-sm font-bold text-emerald-700 shadow-card">
+          Memeriksa sesi akun...
+        </div>
+      </div>
+    );
+  }
+
   return (
     <PageTransition>
       <div className="min-h-screen bg-[#fbfaf6] text-ink">

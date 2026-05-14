@@ -111,6 +111,11 @@ create policy "Users can read own profile"
 on public.users for select
 using (auth.uid() = id);
 
+create policy "Teachers can read student profiles"
+on public.users for select
+to authenticated
+using (exists (select 1 from public.users teacher where teacher.id = auth.uid() and teacher.role = 'teacher'));
+
 create policy "Users can update own profile"
 on public.users for update
 using (auth.uid() = id);

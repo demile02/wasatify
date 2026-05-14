@@ -19,9 +19,11 @@ export function useModules({ includeProgress = false } = {}) {
       ]);
       setModules(moduleRows);
       setProgress(progressRows);
+      return moduleRows;
     } catch (nextError) {
       console.error(nextError);
       setError(nextError.message || 'Gagal memuat data pembelajaran.');
+      return [];
     } finally {
       setLoading(false);
     }
