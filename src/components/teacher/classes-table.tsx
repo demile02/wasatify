@@ -1,13 +1,16 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { BarChart3, ClipboardCheck, Search, Users } from 'lucide-react';
+import { useMemo, useState, useTransition } from 'react';
+import { BarChart3, ClipboardCheck, Search, Trash2, Users } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 import { EmptyState } from '@/components/shared/empty-state';
 import { ProgressBar } from '@/components/shared/progress-bar';
 import { SectionCard } from '@/components/shared/section-card';
 import { Button } from '@/components/ui/button';
 import { ClassFormDialog } from '@/components/teacher/class-form-dialog';
+import { deleteTeacherClassAction } from '@/lib/teacher/class-actions';
 import type { TeacherClassListItem } from '@/lib/teacher/classes';
 
 type ClassesTableProps = {
@@ -15,7 +18,10 @@ type ClassesTableProps = {
 };
 
 export function ClassesTable({ classes }: ClassesTableProps) {
+  const router = useRouter();
   const [query, setQuery] = useState('');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
   const filteredClasses = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     if (!normalizedQuery) return classes;
@@ -27,6 +33,30 @@ export function ClassesTable({ classes }: ClassesTableProps) {
         (classItem.academicYear?.toLowerCase().includes(normalizedQuery) ?? false),
     );
   }, [classes, query]);
+
+  function handleDelete(classItem: TeacherClassListItem) {
+    if (classItem.totalStudents > 0) {
+      toast.warning('Kelas masih memiliki siswa. Pindahkan siswa terlebih dahulu sebelum menghapus kelas.');
+      return;
+    }
+
+    if (!window.confirm(`Hapus kelas "${classItem.name}"? Aksi ini tidak bisa dibatalkan.`)) return;
+
+    setDeletingId(classItem.id);
+    startTransition(async () => {
+      const result = await deleteTeacherClassAction(classItem.id);
+
+      if (!result.ok) {
+        toast.error(result.error ?? 'Kelas belum berhasil dihapus.');
+        setDeletingId(null);
+        return;
+      }
+
+      toast.success('Kelas berhasil dihapus.');
+      setDeletingId(null);
+      router.refresh();
+    });
+  }
 
   return (
     <div className="mt-8 space-y-6">
@@ -59,6 +89,16 @@ export function ClassesTable({ classes }: ClassesTableProps) {
                   <ClassFormDialog classItem={classItem} />
                   <Button asChild size="sm">
                     <Link href={`/teacher/classes/${classItem.id}`}>Lihat Detail</Link>
+                  </Button>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="outline"
+                    disabled={isPending && deletingId === classItem.id}
+                    onClick={() => handleDelete(classItem)}
+                    aria-label={`Hapus kelas ${classItem.name}`}
+                  >
+                    <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
               </div>
