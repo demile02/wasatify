@@ -113,6 +113,30 @@ begin
   end if;
 end $$;
 
+create or replace function public.get_public_classes_for_registration()
+returns table (
+  id uuid,
+  name text,
+  grade_level text,
+  academic_year text,
+  teacher_id uuid,
+  join_code text
+)
+language sql
+security definer
+set search_path = public
+as $$
+  select
+    c.id,
+    c.name,
+    c.grade_level,
+    c.academic_year,
+    c.teacher_id,
+    c.join_code
+  from public.classes c
+  order by c.name asc;
+$$;
+
 create table if not exists public.modules (
   id uuid primary key default gen_random_uuid(),
   teacher_id uuid references public.profiles(id) on delete set null,

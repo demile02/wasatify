@@ -13,11 +13,13 @@ import { AuthInput, AuthTextarea } from '@/components/auth/auth-fields';
 import { SocialAuthButtons } from '@/components/auth/social-auth-buttons';
 import { Button } from '@/components/ui/button';
 import { getRoleDashboardPath } from '@/lib/auth/roles';
+import type { PublicRegistrationClass } from '@/lib/auth/classes';
 import { createClient } from '@/lib/supabase/client';
 import type { AppRole } from '@/lib/types';
 
 type RegisterFormProps = {
   role: Extract<AppRole, 'student' | 'teacher'>;
+  initialClasses?: PublicRegistrationClass[];
 };
 
 const registerSchema = z
@@ -37,19 +39,13 @@ const registerSchema = z
 
 type RegisterFormValues = z.infer<typeof registerSchema>;
 
-type PublicClassOption = {
-  id: string;
-  name: string;
-  grade_level: string | null;
-  academic_year: string | null;
-};
-
-export function RegisterForm({ role }: RegisterFormProps) {
+export function RegisterForm({ role, initialClasses = [] }: RegisterFormProps) {
   const router = useRouter();
   const isTeacher = role === 'teacher';
   const [showPassword, setShowPassword] = useState(false);
-  const [classes, setClasses] = useState<PublicClassOption[]>([]);
-  const [loadingClasses, setLoadingClasses] = useState(!isTeacher);
+  const [classes, setClasses] = useState<PublicRegistrationClass[]>(initialClasses);
+  const [loadingClasses, setLoadingClasses] = useState(!isTeacher && !initialClasses.length);
+  const [classesError, setClassesError] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const {
@@ -75,17 +71,38 @@ export function RegisterForm({ role }: RegisterFormProps) {
     let mounted = true;
 
     async function loadClasses() {
+      if (initialClasses.length) {
+        setLoadingClasses(false);
+        return;
+      }
+
       try {
         const supabase = createClient();
         const { data, error: classError } = await supabase
           .from('classes')
-          .select('id, name, grade_level, academic_year')
+          .select('id, name, grade_level, academic_year, teacher_id, join_code')
           .order('name', { ascending: true });
 
-        if (classError) throw classError;
-        if (mounted) setClasses((data ?? []) as PublicClassOption[]);
-      } catch {
+        if (!classError) {
+          if (mounted) {
+            setClasses((data ?? []) as PublicRegistrationClass[]);
+            setClassesError('');
+          }
+          return;
+        }
+
+        const { data: rpcData, error: rpcError } = await supabase.rpc('get_public_classes_for_registration');
+        if (rpcError) throw rpcError;
+
+        if (mounted) {
+          setClasses((rpcData ?? []) as PublicRegistrationClass[]);
+          setClassesError('');
+        }
+      } catch (loadError) {
         if (mounted) setClasses([]);
+        if (mounted) {
+          setClassesError(loadError instanceof Error ? loadError.message : 'Kelas belum bisa dimuat.');
+        }
       } finally {
         if (mounted) setLoadingClasses(false);
       }
@@ -96,7 +113,7 @@ export function RegisterForm({ role }: RegisterFormProps) {
     return () => {
       mounted = false;
     };
-  }, [isTeacher]);
+  }, [initialClasses.length, isTeacher]);
 
   async function onSubmit(values: RegisterFormValues) {
     setError('');
@@ -223,6 +240,11 @@ export function RegisterForm({ role }: RegisterFormProps) {
                 </option>
               ))}
             </select>
+            {classesError && (
+              <p className="text-xs leading-5 text-red-600">
+                Kelas belum bisa dimuat: {classesError}. Pastikan `schema.sql` dan `rls.sql` terbaru sudah dijalankan.
+              </p>
+            )}
             {!classes.length && !loadingClasses && (
               <p className="text-xs leading-5 text-muted-foreground">
                 Belum ada kelas tersedia. Hubungi guru, atau lanjut daftar dan minta guru menghubungkan akunmu nanti.

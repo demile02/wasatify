@@ -247,8 +247,11 @@ with check (public.is_admin());
 
 create policy "classes_select_public_registration"
 on public.classes for select
-to anon
+to anon, authenticated
 using (true);
+
+grant select on public.classes to anon, authenticated;
+grant execute on function public.get_public_classes_for_registration() to anon, authenticated;
 
 create policy "classes_select_related"
 on public.classes for select
