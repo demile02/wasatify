@@ -10,9 +10,11 @@ export type TeacherModuleListItem = {
   description: string;
   category: string;
   lessonsCount: number;
+  quizzesCount: number;
   duration: string;
   status: TeacherModuleStatus;
   coverImagePath: string | null;
+  createdAt: string | null;
   updatedAt: string | null;
 };
 
@@ -80,6 +82,7 @@ type ModuleRow = {
   tags?: string[] | null;
   status: TeacherModuleStatus;
   estimated_minutes: number | null;
+  created_at: string | null;
   updated_at: string | null;
 };
 
@@ -138,9 +141,11 @@ const demoTeacherModules: TeacherModuleListItem[] = [
     description: 'Memahami pentingnya adab dalam kehidupan sehari-hari.',
     category: 'Akhlak',
     lessonsCount: 10,
+    quizzesCount: 1,
     duration: '2j 30m',
     status: 'published',
     coverImagePath: null,
+    createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
   {
@@ -150,22 +155,30 @@ const demoTeacherModules: TeacherModuleListItem[] = [
     description: 'Belajar menjaga keseimbangan dunia dan akhirat.',
     category: 'Wasathiyah',
     lessonsCount: 6,
+    quizzesCount: 0,
     duration: '1j 20m',
     status: 'draft',
     coverImagePath: null,
+    createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
 ];
 
-export async function getTeacherModules(): Promise<TeacherModuleListItem[]> {
+export async function getTeacherModules(profile?: Profile): Promise<TeacherModuleListItem[]> {
   if (!isSupabaseConfigured) return demoTeacherModules;
 
   try {
     const supabase = await createClient();
-    const { data: moduleRows, error: moduleError } = await supabase
+    let query = supabase
       .from('modules')
-      .select('id, slug, title, description, class_id, cover_image_path, tags, status, estimated_minutes, updated_at')
+      .select('id, slug, title, description, class_id, cover_image_path, tags, status, estimated_minutes, created_at, updated_at')
       .order('updated_at', { ascending: false });
+
+    if (profile?.role === 'teacher') {
+      query = query.eq('created_by', profile.id);
+    }
+
+    const { data: moduleRows, error: moduleError } = await query;
 
     if (moduleError) throw moduleError;
 
@@ -174,16 +187,19 @@ export async function getTeacherModules(): Promise<TeacherModuleListItem[]> {
 
     const moduleIds = modules.map((moduleItem) => moduleItem.id);
     const classIds = [...new Set(modules.map((moduleItem) => moduleItem.class_id).filter(Boolean))] as string[];
-    const [lessonsResult, classesResult] = await Promise.all([
+    const [lessonsResult, quizzesResult, classesResult] = await Promise.all([
       supabase.from('lessons').select('id, module_id').in('module_id', moduleIds),
+      supabase.from('quizzes').select('id, module_id').in('module_id', moduleIds),
       classIds.length
         ? supabase.from('classes').select('id, name, grade_level').in('id', classIds)
         : Promise.resolve({ data: [], error: null }),
     ]);
 
     const lessons = lessonsResult.error ? [] : ((lessonsResult.data ?? []) as LessonRow[]);
+    const quizzes = quizzesResult.error ? [] : ((quizzesResult.data ?? []) as QuizRow[]);
     const classes = classesResult.error ? [] : ((classesResult.data ?? []) as ClassRow[]);
     const lessonsCountByModule = countBy(lessons, (lesson) => lesson.module_id);
+    const quizzesCountByModule = countBy(quizzes, (quiz) => quiz.module_id);
     const classById = new Map(classes.map((classItem) => [classItem.id, classItem]));
 
     return modules.map((moduleItem) => {
@@ -196,9 +212,11 @@ export async function getTeacherModules(): Promise<TeacherModuleListItem[]> {
         description: moduleItem.description,
         category: moduleItem.tags?.[0] ?? classItem?.grade_level ?? classItem?.name ?? 'Umum',
         lessonsCount: lessonsCountByModule.get(moduleItem.id) ?? 0,
+        quizzesCount: quizzesCountByModule.get(moduleItem.id) ?? 0,
         duration: formatDuration(moduleItem.estimated_minutes ?? 15),
         status: moduleItem.status,
         coverImagePath: moduleItem.cover_image_path,
+        createdAt: moduleItem.created_at,
         updatedAt: moduleItem.updated_at,
       };
     });
@@ -250,27 +268,31 @@ export async function getTeacherDashboardData(profile: Profile): Promise<Teacher
     const students = studentsResult.error ? [] : ((studentsResult.data ?? []) as StudentRow[]);
     const quizzes = quizzesResult.error ? [] : ((quizzesResult.data ?? []) as QuizRow[]);
     const studentIds = students.map((student) => student.id);
+    const quizIds = quizzes.map((quiz) => quiz.id);
 
     const [moduleProgressResult, quizAttemptsResult, reflectionsResult] = await Promise.all([
-      studentIds.length
+      studentIds.length && moduleIds.length
         ? supabase
             .from('module_progress')
             .select('student_id, module_id, status, progress_percent, completed_at, updated_at, created_at')
             .in('student_id', studentIds)
+            .in('module_id', moduleIds)
         : Promise.resolve({ data: [], error: null }),
-      studentIds.length
+      studentIds.length && quizIds.length
         ? supabase
             .from('quiz_attempts')
             .select('id, quiz_id, student_id, score, submitted_at, created_at')
             .in('student_id', studentIds)
+            .in('quiz_id', quizIds)
             .order('submitted_at', { ascending: false })
             .limit(10)
         : Promise.resolve({ data: [], error: null }),
-      studentIds.length
+      studentIds.length && moduleIds.length
         ? supabase
             .from('reflections')
             .select('id, student_id, module_id, created_at')
             .in('student_id', studentIds)
+            .in('module_id', moduleIds)
             .order('created_at', { ascending: false })
             .limit(10)
         : Promise.resolve({ data: [], error: null }),

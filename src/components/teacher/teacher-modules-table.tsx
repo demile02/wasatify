@@ -1,11 +1,15 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { useMemo, useState } from 'react';
-import { BookOpen, Eye, MoreVertical, PencilLine, Plus, Search } from 'lucide-react';
+import { useMemo, useState, useTransition } from 'react';
+import { BookOpen, Eye, MoreVertical, PencilLine, Plus, Search, Send, Undo2 } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 import { EmptyState } from '@/components/shared/empty-state';
 import { Button } from '@/components/ui/button';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { toggleTeacherModulePublishAction } from '@/lib/teacher/actions';
 import type { TeacherModuleListItem, TeacherModuleStatus } from '@/lib/teacher/data';
 import { cn } from '@/lib/utils';
 
@@ -16,16 +20,19 @@ type TeacherModulesTableProps = {
 type StatusFilter = 'all' | TeacherModuleStatus;
 
 const statusFilters: { value: StatusFilter; label: string }[] = [
-  { value: 'all', label: 'Semua Status' },
-  { value: 'published', label: 'Aktif' },
+  { value: 'all', label: 'Semua' },
+  { value: 'published', label: 'Published' },
   { value: 'draft', label: 'Draft' },
-  { value: 'archived', label: 'Nonaktif' },
+  { value: 'archived', label: 'Archived' },
 ];
 
 export function TeacherModulesTable({ modules }: TeacherModulesTableProps) {
+  const router = useRouter();
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('all');
   const [status, setStatus] = useState<StatusFilter>('all');
+  const [pendingModuleId, setPendingModuleId] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
 
   const categories = useMemo(() => {
     const values = [...new Set(modules.map((moduleItem) => moduleItem.category).filter(Boolean))];
@@ -65,6 +72,26 @@ export function TeacherModulesTable({ modules }: TeacherModulesTableProps) {
         }
       />
     );
+  }
+
+  function togglePublish(moduleItem: TeacherModuleListItem) {
+    setPendingModuleId(moduleItem.id);
+    startTransition(async () => {
+      const result = await toggleTeacherModulePublishAction({
+        moduleId: moduleItem.id,
+        currentStatus: moduleItem.status,
+      });
+
+      setPendingModuleId(null);
+
+      if (!result.ok) {
+        toast.error(result.error ?? 'Status modul belum berhasil diperbarui.');
+        return;
+      }
+
+      toast.success(result.status === 'published' ? 'Modul dipublikasikan.' : 'Modul dikembalikan ke draft.');
+      router.refresh();
+    });
   }
 
   return (
@@ -113,9 +140,10 @@ export function TeacherModulesTable({ modules }: TeacherModulesTableProps) {
               <tr>
                 <th className="px-5 py-4 font-bold">Modul</th>
                 <th className="px-5 py-4 font-bold">Kategori</th>
-                <th className="px-5 py-4 font-bold">Pelajaran</th>
+                <th className="px-5 py-4 font-bold">Konten</th>
                 <th className="px-5 py-4 font-bold">Durasi</th>
                 <th className="px-5 py-4 font-bold">Status</th>
+                <th className="px-5 py-4 font-bold">Update</th>
                 <th className="px-5 py-4 text-right font-bold">Aksi</th>
               </tr>
             </thead>
@@ -134,10 +162,16 @@ export function TeacherModulesTable({ modules }: TeacherModulesTableProps) {
                     </div>
                   </td>
                   <td className="px-5 py-4 font-semibold text-foreground">{moduleItem.category}</td>
-                  <td className="px-5 py-4 text-muted-foreground">{moduleItem.lessonsCount} pelajaran</td>
+                  <td className="px-5 py-4 text-muted-foreground">
+                    <span className="block">{moduleItem.lessonsCount} lesson</span>
+                    <span className="mt-1 block text-xs">{moduleItem.quizzesCount} kuis</span>
+                  </td>
                   <td className="px-5 py-4 text-muted-foreground">{moduleItem.duration}</td>
                   <td className="px-5 py-4">
                     <ModuleStatusBadge status={moduleItem.status} />
+                  </td>
+                  <td className="px-5 py-4 text-xs text-muted-foreground">
+                    {moduleItem.updatedAt ? formatDate(moduleItem.updatedAt) : '-'}
                   </td>
                   <td className="px-5 py-4">
                     <div className="flex justify-end gap-2">
@@ -147,13 +181,28 @@ export function TeacherModulesTable({ modules }: TeacherModulesTableProps) {
                       <IconAction href={`/teacher/modules/${moduleItem.id}/edit`} label="Edit">
                         <PencilLine className="h-4 w-4" />
                       </IconAction>
-                      <button
+                      <Button
                         type="button"
-                        aria-label={`Aksi lainnya untuk ${moduleItem.title}`}
-                        className="grid h-9 w-9 place-items-center rounded-xl border border-border bg-white text-muted-foreground transition hover:bg-mint hover:text-primary"
+                        variant="outline"
+                        size="icon"
+                        className="h-9 w-9 rounded-xl"
+                        disabled={isPending && pendingModuleId === moduleItem.id}
+                        title={moduleItem.status === 'published' ? 'Unpublish' : 'Publish'}
+                        onClick={() => togglePublish(moduleItem)}
                       >
-                        <MoreVertical className="h-4 w-4" />
-                      </button>
+                        {moduleItem.status === 'published' ? <Undo2 className="h-4 w-4" /> : <Send className="h-4 w-4" />}
+                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="outline" size="icon" className="h-9 w-9 rounded-xl">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem disabled>Duplikasi modul</DropdownMenuItem>
+                          <DropdownMenuItem disabled>Arsipkan modul</DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </td>
                 </tr>
@@ -224,4 +273,12 @@ function IconAction({ href, label, children }: { href: string; label: string; ch
       {children}
     </Link>
   );
+}
+
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat('id-ID', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  }).format(new Date(value));
 }

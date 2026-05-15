@@ -66,13 +66,17 @@ create table if not exists public.profiles (
   class_name text,
   subject text,
   bio text,
+  xp integer not null default 0 check (xp >= 0),
+  streak_count integer not null default 0 check (streak_count >= 0),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
 alter table public.profiles
   add column if not exists class_name text,
-  add column if not exists subject text;
+  add column if not exists subject text,
+  add column if not exists xp integer not null default 0 check (xp >= 0),
+  add column if not exists streak_count integer not null default 0 check (streak_count >= 0);
 
 create table if not exists public.classes (
   id uuid primary key default gen_random_uuid(),
@@ -80,6 +84,7 @@ create table if not exists public.classes (
   name text not null,
   description text,
   grade_level text,
+  academic_year text,
   join_code text not null unique default upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 8)),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -87,6 +92,12 @@ create table if not exists public.classes (
 
 alter table public.profiles
   add column if not exists class_id uuid;
+
+alter table public.classes
+  add column if not exists academic_year text;
+
+alter table public.profiles
+  add column if not exists last_active_at timestamptz;
 
 do $$
 begin
@@ -111,6 +122,7 @@ create table if not exists public.modules (
   slug text not null unique,
   description text not null,
   cover_image_path text,
+  difficulty text check (difficulty is null or difficulty in ('pemula', 'menengah', 'lanjut')),
   tags text[] not null default '{}'::text[],
   status public.module_status not null default 'draft',
   is_public boolean not null default true,
@@ -123,7 +135,8 @@ create table if not exists public.modules (
 
 alter table public.modules
   add column if not exists tags text[] not null default '{}'::text[],
-  add column if not exists created_by uuid references public.profiles(id) on delete set null;
+  add column if not exists created_by uuid references public.profiles(id) on delete set null,
+  add column if not exists difficulty text check (difficulty is null or difficulty in ('pemula', 'menengah', 'lanjut'));
 
 update public.modules
 set created_by = teacher_id
@@ -134,9 +147,11 @@ create table if not exists public.media_assets (
   id uuid primary key default gen_random_uuid(),
   owner_id uuid references public.profiles(id) on delete set null,
   module_id uuid references public.modules(id) on delete cascade,
+  title text,
   bucket text not null,
   path text not null,
   public_url text,
+  file_type text check (file_type is null or file_type in ('image', 'video', 'pdf', 'document', 'other')),
   mime_type text,
   size_bytes bigint check (size_bytes is null or size_bytes >= 0),
   kind public.media_kind not null default 'other',
@@ -144,6 +159,16 @@ create table if not exists public.media_assets (
   updated_at timestamptz not null default now(),
   unique (bucket, path)
 );
+
+alter table public.media_assets
+  add column if not exists title text,
+  add column if not exists file_type text check (file_type is null or file_type in ('image', 'video', 'pdf', 'document', 'other')),
+  add column if not exists size_bytes bigint check (size_bytes is null or size_bytes >= 0),
+  add column if not exists module_id uuid references public.modules(id) on delete set null;
+
+alter table public.media_assets
+  drop constraint if exists media_assets_module_id_fkey,
+  add constraint media_assets_module_id_fkey foreign key (module_id) references public.modules(id) on delete set null;
 
 create table if not exists public.lessons (
   id uuid primary key default gen_random_uuid(),
@@ -153,6 +178,7 @@ create table if not exists public.lessons (
   slug text not null,
   type public.lesson_type not null default 'article',
   content text,
+  reflection_prompt text,
   video_url text,
   infographic_url text,
   order_index integer not null default 1,
@@ -165,6 +191,9 @@ create table if not exists public.lessons (
 alter table public.lessons
   add column if not exists infographic_url text;
 
+alter table public.lessons
+  add column if not exists reflection_prompt text;
+
 create table if not exists public.quizzes (
   id uuid primary key default gen_random_uuid(),
   module_id uuid not null references public.modules(id) on delete cascade,
@@ -176,6 +205,9 @@ create table if not exists public.quizzes (
   max_attempts integer not null default 3 check (max_attempts > 0),
   time_limit_seconds integer check (time_limit_seconds is null or time_limit_seconds > 0),
   is_published boolean not null default false,
+  allow_retake boolean not null default true,
+  show_explanation boolean not null default true,
+  shuffle_questions boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (module_id, title)
@@ -183,6 +215,11 @@ create table if not exists public.quizzes (
 
 alter table public.quizzes
   add column if not exists status public.quiz_status not null default 'draft';
+
+alter table public.quizzes
+  add column if not exists allow_retake boolean not null default true,
+  add column if not exists show_explanation boolean not null default true,
+  add column if not exists shuffle_questions boolean not null default false;
 
 update public.quizzes
 set status = case
@@ -241,6 +278,9 @@ create table if not exists public.quiz_attempts (
   status public.quiz_attempt_status not null default 'in_progress',
   answers jsonb not null default '{}'::jsonb check (jsonb_typeof(answers) = 'object'),
   score numeric(5,2) check (score is null or (score >= 0 and score <= 100)),
+  total_points integer check (total_points is null or total_points >= 0),
+  earned_points integer check (earned_points is null or earned_points >= 0),
+  passed boolean not null default false,
   total_questions integer check (total_questions is null or total_questions >= 0),
   correct_answers integer check (correct_answers is null or correct_answers >= 0),
   started_at timestamptz not null default now(),
@@ -249,16 +289,29 @@ create table if not exists public.quiz_attempts (
   updated_at timestamptz not null default now()
 );
 
+alter table public.quiz_attempts
+  add column if not exists total_points integer check (total_points is null or total_points >= 0),
+  add column if not exists earned_points integer check (earned_points is null or earned_points >= 0),
+  add column if not exists passed boolean not null default false;
+
 create table if not exists public.reflections (
   id uuid primary key default gen_random_uuid(),
   student_id uuid not null references public.profiles(id) on delete cascade,
   module_id uuid not null references public.modules(id) on delete cascade,
   reflection_text text not null,
   action_plan text,
+  teacher_note text,
+  reviewed_by uuid references public.profiles(id) on delete set null,
+  reviewed_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (student_id, module_id)
 );
+
+alter table public.reflections
+  add column if not exists teacher_note text,
+  add column if not exists reviewed_by uuid references public.profiles(id) on delete set null,
+  add column if not exists reviewed_at timestamptz;
 
 create table if not exists public.achievements (
   id uuid primary key default gen_random_uuid(),
@@ -286,11 +339,19 @@ create table if not exists public.announcements (
   class_id uuid references public.classes(id) on delete cascade,
   title text not null,
   content text not null,
+  status text not null default 'draft' check (status in ('draft', 'published')),
   priority text not null default 'normal' check (priority in ('low', 'normal', 'high')),
   published_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.announcements
+  add column if not exists status text not null default 'draft' check (status in ('draft', 'published'));
+
+update public.announcements
+set status = case when published_at is null then 'draft' else 'published' end
+where status = 'draft' and published_at is not null;
 
 create or replace function public.set_updated_at()
 returns trigger

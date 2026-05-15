@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 import { ProgressBar } from '@/components/shared/progress-bar';
 import { SectionCard } from '@/components/shared/section-card';
 import { Button } from '@/components/ui/button';
@@ -86,6 +87,14 @@ export function ModuleEditorForm({ mode, initialData, classes }: ModuleEditorFor
     setForm((current) => ({ ...current, ...patch }));
   }
 
+  function updateTitle(title: string) {
+    setForm((current) => ({
+      ...current,
+      title,
+      slug: current.slug ? current.slug : slugify(title),
+    }));
+  }
+
   function updateLesson(clientId: string, patch: Partial<LessonState>) {
     setForm((current) => ({
       ...current,
@@ -139,6 +148,7 @@ export function ModuleEditorForm({ mode, initialData, classes }: ModuleEditorFor
       const validationError = validateForm(intent, form);
       if (validationError) {
         setError(validationError);
+        if (intent === 'publish') toast.warning(validationError);
         setSavingIntent(null);
         return;
       }
@@ -154,9 +164,12 @@ export function ModuleEditorForm({ mode, initialData, classes }: ModuleEditorFor
       const result = await saveTeacherModuleAction({
         moduleId: form.id,
         title: form.title,
+        slug: form.slug,
         description: form.description,
         classId: form.classId,
         estimatedMinutes: form.estimatedMinutes,
+        orderIndex: form.orderIndex,
+        difficulty: form.difficulty,
         tags: parseTags(tagsText),
         coverImagePath: uploadedCover?.publicUrl ?? form.coverImagePath,
         coverAsset: uploadedCover ?? undefined,
@@ -177,6 +190,7 @@ export function ModuleEditorForm({ mode, initialData, classes }: ModuleEditorFor
       }
 
       setSuccess(intent === 'publish' ? 'Modul berhasil dipublikasikan.' : 'Draft modul berhasil disimpan.');
+      toast.success(intent === 'publish' ? 'Modul berhasil dipublikasikan.' : 'Draft modul berhasil disimpan.');
       if (result.moduleId && mode === 'create') {
         router.replace(`/teacher/modules/${result.moduleId}/edit`);
       } else {
@@ -248,6 +262,7 @@ export function ModuleEditorForm({ mode, initialData, classes }: ModuleEditorFor
               setCoverPreview(file ? URL.createObjectURL(file) : form.coverImagePath);
             }}
             updateForm={updateForm}
+            updateTitle={updateTitle}
           />
         )}
 
@@ -283,7 +298,7 @@ export function ModuleEditorForm({ mode, initialData, classes }: ModuleEditorFor
                 ...current,
                 quiz: {
                   ...current.quiz,
-                  questions: [...current.quiz.questions, createQuestionState()],
+                  questions: [...current.quiz.questions, createQuestionState(undefined, current.quiz.questions.length + 1)],
                 },
               }))
             }
@@ -340,16 +355,16 @@ export function ModuleEditorForm({ mode, initialData, classes }: ModuleEditorFor
             onClick={() => saveModule('draft')}
           >
             <Save className="h-4 w-4" />
-            {savingIntent === 'draft' ? 'Menyimpan...' : 'Save Draft'}
+            {savingIntent === 'draft' ? 'Menyimpan...' : 'Simpan Draft'}
           </Button>
           {activeStep === 'summary' ? (
             <Button type="button" disabled={Boolean(savingIntent)} onClick={() => saveModule('publish')}>
               <CheckCircle2 className="h-4 w-4" />
-              {savingIntent === 'publish' ? 'Publish...' : 'Publish'}
+              {savingIntent === 'publish' ? 'Mempublikasikan...' : 'Publikasikan'}
             </Button>
           ) : (
             <Button type="button" onClick={goNext}>
-              Selanjutnya
+              Simpan & Lanjut
               <ArrowRight className="h-4 w-4" />
             </Button>
           )}
@@ -368,6 +383,7 @@ function InfoStep({
   onTagsChange,
   onCoverChange,
   updateForm,
+  updateTitle,
 }: {
   form: FormState;
   classes: TeacherClassOption[];
@@ -377,6 +393,7 @@ function InfoStep({
   onTagsChange: (value: string) => void;
   onCoverChange: (file: File | null) => void;
   updateForm: (patch: Partial<FormState>) => void;
+  updateTitle: (title: string) => void;
 }) {
   return (
     <div className="grid gap-6 xl:grid-cols-[1fr_0.42fr]">
@@ -385,10 +402,30 @@ function InfoStep({
           <Field label="Judul Modul" className="sm:col-span-2">
             <input
               value={form.title}
-              onChange={(event) => updateForm({ title: event.target.value })}
+              onChange={(event) => updateTitle(event.target.value)}
               placeholder="Contoh: Adab dalam Islam"
               className={inputClass}
             />
+          </Field>
+          <Field label="Slug">
+            <input
+              value={form.slug}
+              onChange={(event) => updateForm({ slug: slugify(event.target.value) })}
+              placeholder="adab-dalam-islam"
+              className={inputClass}
+            />
+          </Field>
+          <Field label="Difficulty">
+            <select
+              value={form.difficulty}
+              onChange={(event) => updateForm({ difficulty: event.target.value as FormState['difficulty'] })}
+              className={inputClass}
+            >
+              <option value="">Pilih difficulty</option>
+              <option value="pemula">Pemula</option>
+              <option value="menengah">Menengah</option>
+              <option value="lanjut">Lanjut</option>
+            </select>
           </Field>
           <Field label="Deskripsi Singkat" className="sm:col-span-2">
             <textarea
@@ -422,6 +459,26 @@ function InfoStep({
               className={inputClass}
             />
           </Field>
+          <Field label="Order Index">
+            <input
+              type="number"
+              min={1}
+              value={form.orderIndex}
+              onChange={(event) => updateForm({ orderIndex: Number(event.target.value) })}
+              className={inputClass}
+            />
+          </Field>
+          <Field label="Status">
+            <select
+              value={form.status}
+              onChange={(event) => updateForm({ status: event.target.value as FormState['status'] })}
+              className={inputClass}
+            >
+              <option value="draft">Draft</option>
+              <option value="published">Published</option>
+              <option value="archived">Archived</option>
+            </select>
+          </Field>
           <Field label="Tag/Topik" className="sm:col-span-2">
             <input
               value={tagsText}
@@ -430,7 +487,15 @@ function InfoStep({
               className={inputClass}
             />
           </Field>
-          <Field label="Cover Image" className="sm:col-span-2">
+          <Field label="Cover Image URL" className="sm:col-span-2">
+            <input
+              value={form.coverImagePath}
+              onChange={(event) => updateForm({ coverImagePath: event.target.value })}
+              placeholder="https://..."
+              className={inputClass}
+            />
+          </Field>
+          <Field label="Upload Cover Image" className="sm:col-span-2">
             <label className="flex min-h-36 cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-primary/20 bg-mint/35 px-4 py-6 text-center transition hover:bg-mint/55">
               <ImageUp className="h-8 w-8 text-primary" />
               <span className="mt-3 text-sm font-bold text-ink">Upload cover modul</span>
@@ -474,6 +539,17 @@ function ContentStep({
   addLesson: () => void;
   removeLesson: (clientId: string) => void;
 }) {
+  function moveLesson(clientId: string, direction: -1 | 1) {
+    const index = lessons.findIndex((lesson) => lesson.clientId === clientId);
+    const targetIndex = index + direction;
+    if (index < 0 || targetIndex < 0 || targetIndex >= lessons.length) return;
+
+    const nextLessons = [...lessons];
+    const [moved] = nextLessons.splice(index, 1);
+    nextLessons.splice(targetIndex, 0, moved);
+    nextLessons.forEach((lesson, lessonIndex) => updateLesson(lesson.clientId, { orderIndex: lessonIndex + 1 }));
+  }
+
   return (
     <SectionCard>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -492,10 +568,18 @@ function ContentStep({
           <div key={lesson.clientId} className="rounded-2xl border border-border bg-white p-4">
             <div className="mb-4 flex items-center justify-between gap-3">
               <p className="font-bold text-ink">Lesson {index + 1}</p>
-              <Button type="button" variant="ghost" size="sm" onClick={() => removeLesson(lesson.clientId)}>
-                <Trash2 className="h-4 w-4" />
-                Hapus
-              </Button>
+              <div className="flex gap-2">
+                <Button type="button" variant="ghost" size="sm" onClick={() => moveLesson(lesson.clientId, -1)} disabled={index === 0}>
+                  Naik
+                </Button>
+                <Button type="button" variant="ghost" size="sm" onClick={() => moveLesson(lesson.clientId, 1)} disabled={index === lessons.length - 1}>
+                  Turun
+                </Button>
+                <Button type="button" variant="ghost" size="sm" onClick={() => window.confirm('Hapus lesson ini?') && removeLesson(lesson.clientId)}>
+                  <Trash2 className="h-4 w-4" />
+                  Hapus
+                </Button>
+              </div>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Judul Lesson">
@@ -537,6 +621,14 @@ function ContentStep({
                   onChange={(event) => updateLesson(lesson.clientId, { infographicUrl: event.target.value })}
                   className={inputClass}
                   placeholder="https://..."
+                />
+              </Field>
+              <Field label="Reflection Prompt Optional" className="sm:col-span-2">
+                <input
+                  value={lesson.reflectionPrompt}
+                  onChange={(event) => updateLesson(lesson.clientId, { reflectionPrompt: event.target.value })}
+                  className={inputClass}
+                  placeholder="Pertanyaan renungan untuk siswa..."
                 />
               </Field>
               <Field label="Upload Infografik" className="sm:col-span-2">
@@ -614,6 +706,25 @@ function QuizStep({
             className={inputClass}
           />
         </Field>
+        <label className="flex items-center justify-between rounded-2xl border border-border bg-white px-4 py-3">
+          <span className="font-bold text-ink">Allow Retake</span>
+          <input type="checkbox" checked={quiz.allowRetake} onChange={(event) => updateQuiz({ allowRetake: event.target.checked })} className="h-5 w-5 accent-primary" />
+        </label>
+        <label className="flex items-center justify-between rounded-2xl border border-border bg-white px-4 py-3">
+          <span className="font-bold text-ink">Show Explanation</span>
+          <input type="checkbox" checked={quiz.showExplanation} onChange={(event) => updateQuiz({ showExplanation: event.target.checked })} className="h-5 w-5 accent-primary" />
+        </label>
+        <label className="flex items-center justify-between rounded-2xl border border-border bg-white px-4 py-3">
+          <span className="font-bold text-ink">Shuffle Questions</span>
+          <input type="checkbox" checked={quiz.shuffleQuestions} onChange={(event) => updateQuiz({ shuffleQuestions: event.target.checked })} className="h-5 w-5 accent-primary" />
+        </label>
+        <Field label="Quiz Status">
+          <select value={quiz.status} onChange={(event) => updateQuiz({ status: event.target.value as FormState['quiz']['status'], isPublished: event.target.value === 'published' })} className={inputClass}>
+            <option value="draft">Draft</option>
+            <option value="published">Published</option>
+            <option value="archived">Archived</option>
+          </select>
+        </Field>
         <Field label="Deskripsi Kuis" className="sm:col-span-2">
           <textarea
             value={quiz.description}
@@ -636,7 +747,7 @@ function QuizStep({
           <div key={question.clientId} className="rounded-2xl border border-border bg-white p-4">
             <div className="mb-4 flex items-center justify-between gap-3">
               <p className="font-bold text-ink">Pertanyaan {index + 1}</p>
-              <Button type="button" variant="ghost" size="sm" onClick={() => removeQuestion(question.clientId)}>
+              <Button type="button" variant="ghost" size="sm" onClick={() => window.confirm('Hapus pertanyaan ini?') && removeQuestion(question.clientId)}>
                 <Trash2 className="h-4 w-4" />
                 Hapus
               </Button>
@@ -649,8 +760,36 @@ function QuizStep({
                   className={cn(inputClass, 'min-h-24 resize-none py-3')}
                 />
               </Field>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Question Type">
+                  <select
+                    value={question.questionType}
+                    onChange={(event) => {
+                      const nextType = event.target.value as QuestionState['questionType'];
+                      updateQuestion(question.clientId, {
+                        questionType: nextType,
+                        options: nextType === 'true_false' ? ['Benar', 'Salah', '', ''] : question.options,
+                        correctAnswer: 'a',
+                      });
+                    }}
+                    className={inputClass}
+                  >
+                    <option value="multiple_choice">Multiple Choice</option>
+                    <option value="true_false">True / False</option>
+                  </select>
+                </Field>
+                <Field label="Order Index">
+                  <input
+                    type="number"
+                    min={1}
+                    value={question.orderIndex}
+                    onChange={(event) => updateQuestion(question.clientId, { orderIndex: Number(event.target.value) })}
+                    className={inputClass}
+                  />
+                </Field>
+              </div>
               <div className="grid gap-3 sm:grid-cols-2">
-                {optionIds.map((optionId, optionIndex) => (
+                {optionIds.slice(0, question.questionType === 'true_false' ? 2 : 4).map((optionId, optionIndex) => (
                   <Field key={optionId} label={`Opsi ${optionId.toUpperCase()}`}>
                     <input
                       value={question.options[optionIndex]}
@@ -724,11 +863,18 @@ function SummaryStep({
         <p className="font-bold text-ink">Preview Final</p>
         <div className="mt-5 grid gap-4 sm:grid-cols-2">
           <SummaryMetric label="Judul" value={form.title || '-'} />
+          <SummaryMetric label="Slug" value={form.slug || '-'} />
           <SummaryMetric label="Status" value={form.status === 'published' ? 'Aktif' : 'Draft'} />
           <SummaryMetric label="Kelas/Tingkat" value={selectedClass?.name ?? 'Umum'} />
           <SummaryMetric label="Durasi" value={`${form.estimatedMinutes || 0} menit`} />
           <SummaryMetric label="Lessons" value={`${filledLessons} lesson`} />
           <SummaryMetric label="Pertanyaan Kuis" value={`${filledQuestions} pertanyaan`} />
+        </div>
+        <div className="mt-5 grid gap-3">
+          <ReadinessItem ready={form.title.trim().length >= 5 && form.description.trim().length >= 20} label="Informasi lengkap" />
+          <ReadinessItem ready={filledLessons >= 1} label="Minimal 1 lesson" />
+          <ReadinessItem ready={Boolean(form.quiz.title.trim())} label="Quiz tersedia" />
+          <ReadinessItem ready={filledQuestions >= 1} label="Minimal 1 question" />
         </div>
         <div className="mt-5 rounded-2xl border border-border bg-white p-4">
           <p className="font-bold text-ink">Deskripsi</p>
@@ -807,6 +953,17 @@ function SummaryMetric({ label, value }: { label: string; value: string }) {
   );
 }
 
+function ReadinessItem({ ready, label }: { ready: boolean; label: string }) {
+  return (
+    <div className="flex items-center gap-3 rounded-2xl border border-border bg-white px-4 py-3 text-sm font-bold">
+      <span className={ready ? 'grid h-7 w-7 place-items-center rounded-full bg-primary text-white' : 'grid h-7 w-7 place-items-center rounded-full bg-slate-100 text-muted-foreground'}>
+        <CheckCircle2 className="h-4 w-4" />
+      </span>
+      <span className={ready ? 'text-ink' : 'text-muted-foreground'}>{label}</span>
+    </div>
+  );
+}
+
 const inputClass =
   'h-12 w-full rounded-xl border border-border bg-white px-4 text-sm font-semibold text-foreground outline-none transition placeholder:text-muted-foreground/60 focus:border-primary focus:ring-4 focus:ring-primary/10';
 
@@ -838,18 +995,21 @@ function createLessonState(orderIndex: number, clientId = createClientId('lesson
     content: '',
     videoUrl: '',
     infographicUrl: '',
+    reflectionPrompt: '',
     orderIndex,
   };
 }
 
-function createQuestionState(clientId = createClientId('question')): QuestionState {
+function createQuestionState(clientId = createClientId('question'), orderIndex = 1): QuestionState {
   return {
     clientId,
+    questionType: 'multiple_choice',
     questionText: '',
     options: ['', '', '', ''],
     correctAnswer: 'a',
     explanation: '',
     points: 10,
+    orderIndex,
   };
 }
 
@@ -868,6 +1028,7 @@ function stripLessonState(lesson: LessonState): ModuleEditorLesson {
     content: lesson.content,
     videoUrl: lesson.videoUrl,
     infographicUrl: lesson.infographicUrl,
+    reflectionPrompt: lesson.reflectionPrompt,
     orderIndex: lesson.orderIndex,
   };
 }
@@ -875,11 +1036,13 @@ function stripLessonState(lesson: LessonState): ModuleEditorLesson {
 function stripQuestionState(question: QuestionState): ModuleEditorQuestion {
   return {
     id: question.id,
+    questionType: question.questionType,
     questionText: question.questionText,
     options: question.options,
     correctAnswer: question.correctAnswer,
     explanation: question.explanation,
     points: question.points,
+    orderIndex: question.orderIndex,
   };
 }
 
@@ -892,8 +1055,8 @@ function parseTags(value: string) {
 }
 
 function validateForm(intent: 'draft' | 'publish', form: FormState) {
-  if (!form.title.trim()) return 'Judul modul wajib diisi.';
-  if (!form.description.trim()) return 'Deskripsi singkat wajib diisi.';
+  if (form.title.trim().length < 5) return 'Judul modul minimal 5 karakter.';
+  if (form.description.trim().length < 20) return 'Deskripsi minimal 20 karakter.';
   if (!Number.isFinite(form.estimatedMinutes) || form.estimatedMinutes < 1) return 'Durasi belajar tidak valid.';
   if (intent === 'publish' && !form.lessons.some((lesson) => lesson.title.trim() && lesson.content.trim())) {
     return 'Tambahkan minimal satu lesson lengkap sebelum publish.';
@@ -903,6 +1066,15 @@ function validateForm(intent: 'draft' | 'publish', form: FormState) {
   }
 
   return null;
+}
+
+function slugify(value: string) {
+  return value
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
 }
 
 async function uploadModuleFile(file: File, bucket: 'module-covers' | 'module-media', folder: string): Promise<UploadedAssetInput> {

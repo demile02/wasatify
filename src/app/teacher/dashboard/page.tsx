@@ -17,6 +17,7 @@ import { ProgressBar } from '@/components/shared/progress-bar';
 import { SectionCard } from '@/components/shared/section-card';
 import { StatCard } from '@/components/shared/stat-card';
 import { Button } from '@/components/ui/button';
+import { TeacherModuleCompletionChart } from '@/components/teacher/teacher-module-completion-chart';
 import { requireTeacher } from '@/lib/auth/server';
 import { demoTeacherProfile } from '@/lib/demo/teacher';
 import { getTeacherDashboardData, type TeacherActivity } from '@/lib/teacher/data';
@@ -118,21 +119,8 @@ export default async function TeacherDashboardPage() {
           <p className="font-bold text-ink">Penyelesaian Modul</p>
 
           {dashboard.moduleCompletion.length ? (
-            <div className="mt-6 space-y-4">
-              {dashboard.moduleCompletion.map((moduleItem) => (
-                <div key={moduleItem.id}>
-                  <div className="mb-2 flex items-center justify-between gap-4 text-sm">
-                    <span className="line-clamp-1 font-semibold text-foreground">{moduleItem.title}</span>
-                    <span className="shrink-0 font-bold text-primary">{moduleItem.completionRate}%</span>
-                  </div>
-                  <div className="grid grid-cols-[1fr_auto] items-center gap-3">
-                    <ProgressBar value={moduleItem.completionRate} />
-                    <span className="text-xs font-semibold text-muted-foreground">
-                      {moduleItem.completedCount}/{moduleItem.studentsCount || 0}
-                    </span>
-                  </div>
-                </div>
-              ))}
+            <div className="mt-6">
+              <TeacherModuleCompletionChart data={dashboard.moduleCompletion} />
             </div>
           ) : (
             <EmptyState

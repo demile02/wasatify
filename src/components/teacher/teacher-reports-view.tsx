@@ -6,7 +6,6 @@ import {
   Activity,
   BarChart3,
   ClipboardCheck,
-  Download,
   MessageSquareText,
 } from 'lucide-react';
 import {
@@ -23,7 +22,7 @@ import {
 import { EmptyState } from '@/components/shared/empty-state';
 import { SectionCard } from '@/components/shared/section-card';
 import { StatCard } from '@/components/shared/stat-card';
-import { Button } from '@/components/ui/button';
+import { ExportReportButton } from '@/components/teacher/export-report-button';
 import type { TeacherReportsData, TeacherReportScope } from '@/lib/teacher/analytics';
 
 type TeacherReportsViewProps = {
@@ -32,14 +31,22 @@ type TeacherReportsViewProps = {
 
 export function TeacherReportsView({ data }: TeacherReportsViewProps) {
   const [classId, setClassId] = useState(data.scopes[0]?.classId ?? 'all');
+  const [range, setRange] = useState('all');
   const activeScope = useMemo(
     () => data.scopes.find((scope) => scope.classId === classId) ?? data.scopes[0] ?? emptyScope,
     [classId, data.scopes],
   );
+  const classCompletionData = useMemo(
+    () =>
+      data.scopes
+        .filter((scope) => scope.classId !== 'all')
+        .map((scope) => ({ className: scope.className, completion: scope.metrics.completionRate })),
+    [data.scopes],
+  );
 
   return (
     <div className="mt-8">
-      <div className="grid gap-3 lg:grid-cols-[1fr_auto_auto_auto] lg:items-end">
+      <div className="grid gap-3 lg:grid-cols-[1fr_auto_auto] lg:items-end">
         <label>
           <span className="mb-2 block text-sm font-bold text-ink">Filter class</span>
           <select
@@ -55,25 +62,18 @@ export function TeacherReportsView({ data }: TeacherReportsViewProps) {
           </select>
         </label>
         <label>
-          <span className="mb-2 block text-sm font-bold text-ink">Dari tanggal</span>
-          <input
-            type="date"
-            disabled
-            className="h-12 w-full rounded-xl border border-border bg-slate-50 px-4 text-sm font-semibold text-muted-foreground shadow-sm outline-none lg:w-44"
-          />
+          <span className="mb-2 block text-sm font-bold text-ink">Rentang waktu</span>
+          <select
+            value={range}
+            onChange={(event) => setRange(event.target.value)}
+            className="h-12 w-full rounded-xl border border-border bg-white px-4 text-sm font-semibold text-foreground shadow-sm outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 lg:w-44"
+          >
+            <option value="7">7 Hari</option>
+            <option value="30">30 Hari</option>
+            <option value="all">Semua</option>
+          </select>
         </label>
-        <label>
-          <span className="mb-2 block text-sm font-bold text-ink">Sampai tanggal</span>
-          <input
-            type="date"
-            disabled
-            className="h-12 w-full rounded-xl border border-border bg-slate-50 px-4 text-sm font-semibold text-muted-foreground shadow-sm outline-none lg:w-44"
-          />
-        </label>
-        <Button type="button" variant="outline" className="h-12 bg-white">
-          <Download className="h-4 w-4" />
-          Export Report
-        </Button>
+        <ExportReportButton rows={activeScope.students} />
       </div>
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -106,8 +106,18 @@ export function TeacherReportsView({ data }: TeacherReportsViewProps) {
       </div>
 
       <div className="mt-6 grid gap-6 xl:grid-cols-2">
-        <ChartCard title="Completion Trend">
-          {hasCompletionData(activeScope) ? (
+        <ChartCard title="Completion by Class">
+          {classCompletionData.length && hasCountData(classCompletionData, 'completion') ? (
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={classCompletionData} margin={{ left: -20, right: 12, top: 10, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" vertical={false} />
+                <XAxis dataKey="className" tickLine={false} axisLine={false} fontSize={12} />
+                <YAxis domain={[0, 100]} tickLine={false} axisLine={false} fontSize={12} />
+                <Tooltip />
+                <Bar dataKey="completion" fill="#006B4F" radius={[8, 8, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : hasCompletionData(activeScope) ? (
             <ResponsiveContainer width="100%" height={280}>
               <LineChart data={activeScope.completionTrend} margin={{ left: -20, right: 12, top: 10, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
@@ -122,15 +132,15 @@ export function TeacherReportsView({ data }: TeacherReportsViewProps) {
           )}
         </ChartCard>
 
-        <ChartCard title="Quiz Score Distribution">
-          {hasCountData(activeScope.quizDistribution, 'count') ? (
+        <ChartCard title="Quiz Average by Module">
+          {hasCountData(activeScope.topModules, 'averageQuizScore') ? (
             <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={activeScope.quizDistribution} margin={{ left: -20, right: 12, top: 10, bottom: 0 }}>
+              <BarChart data={activeScope.topModules} margin={{ left: -20, right: 12, top: 10, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" vertical={false} />
-                <XAxis dataKey="label" tickLine={false} axisLine={false} fontSize={12} />
-                <YAxis allowDecimals={false} tickLine={false} axisLine={false} fontSize={12} />
+                <XAxis dataKey="title" tickLine={false} axisLine={false} fontSize={12} />
+                <YAxis domain={[0, 100]} tickLine={false} axisLine={false} fontSize={12} />
                 <Tooltip />
-                <Bar dataKey="count" fill="#C98A1A" radius={[8, 8, 0, 0]} />
+                <Bar dataKey="averageQuizScore" fill="#C98A1A" radius={[8, 8, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           ) : (
@@ -173,6 +183,81 @@ export function TeacherReportsView({ data }: TeacherReportsViewProps) {
             <ChartEmpty title="Belum ada ranking aktivitas" />
           )}
         </ChartCard>
+      </div>
+
+      <div className="mt-6 grid gap-6 xl:grid-cols-2">
+        <SectionCard>
+          <p className="font-bold text-ink">Top Modules by Completion</p>
+          {activeScope.topModules.length ? (
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full min-w-[520px] text-left text-sm">
+                <thead>
+                  <tr className="border-b border-border text-xs uppercase tracking-wide text-muted-foreground">
+                    <th className="py-3 pr-4">Modul</th>
+                    <th className="px-4 py-3">Completion</th>
+                    <th className="px-4 py-3">Rata-rata Kuis</th>
+                    <th className="py-3 pl-4">Attempts</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {activeScope.topModules.map((moduleItem) => (
+                    <tr key={moduleItem.id} className="border-b border-border/70 last:border-0">
+                      <td className="py-3 pr-4 font-semibold text-ink">{moduleItem.title}</td>
+                      <td className="px-4 py-3">{moduleItem.completionRate}%</td>
+                      <td className="px-4 py-3">{moduleItem.averageQuizScore || '-'}</td>
+                      <td className="py-3 pl-4">{moduleItem.attemptsCount}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <EmptyState
+              className="mt-4"
+              icon={BarChart3}
+              title="Belum ada data modul"
+              description="Completion modul akan tampil setelah siswa mulai belajar."
+            />
+          )}
+        </SectionCard>
+
+        <SectionCard>
+          <p className="font-bold text-ink">Students Needing Attention</p>
+          {activeScope.studentsNeedingAttention.length ? (
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full min-w-[560px] text-left text-sm">
+                <thead>
+                  <tr className="border-b border-border text-xs uppercase tracking-wide text-muted-foreground">
+                    <th className="py-3 pr-4">Siswa</th>
+                    <th className="px-4 py-3">Progress</th>
+                    <th className="px-4 py-3">Kuis</th>
+                    <th className="py-3 pl-4">Refleksi</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {activeScope.studentsNeedingAttention.map((student) => (
+                    <tr key={student.id} className="border-b border-border/70 last:border-0">
+                      <td className="py-3 pr-4">
+                        <p className="font-semibold text-ink">{student.student}</p>
+                        <p className="text-xs text-muted-foreground">{student.className}</p>
+                      </td>
+                      <td className="px-4 py-3">{student.progress}%</td>
+                      <td className="px-4 py-3">{student.averageQuizScore || '-'}</td>
+                      <td className="py-3 pl-4">{student.reflectionCount}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <EmptyState
+              className="mt-4"
+              icon={Activity}
+              title="Belum ada siswa yang perlu perhatian khusus"
+              description="Daftar ini akan muncul saat ada progress rendah, nilai kuis rendah, atau refleksi belum terkumpul."
+            />
+          )}
+        </SectionCard>
       </div>
     </div>
   );
@@ -219,4 +304,7 @@ const emptyScope: TeacherReportScope = {
   quizDistribution: [],
   reflectionRate: [],
   activityRanking: [],
+  topModules: [],
+  students: [],
+  studentsNeedingAttention: [],
 };

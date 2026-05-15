@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { FileQuestion } from 'lucide-react';
+import { ArrowLeft, FileQuestion } from 'lucide-react';
 import { EmptyState } from '@/components/shared/empty-state';
 import { PageHeader } from '@/components/shared/page-header';
 import { Button } from '@/components/ui/button';
@@ -37,7 +37,19 @@ export default async function TeacherClassDetailPage({ params }: TeacherClassDet
       <PageHeader
         eyebrow="Detail Kelas"
         title={data.classInfo.name}
-        description={data.classInfo.description ?? `Pantau progress, kuis, refleksi, dan aktivitas siswa ${data.classInfo.gradeLevel ?? 'kelas ini'}.`}
+        description={
+          data.classInfo.description ??
+          [data.classInfo.gradeLevel, data.classInfo.academicYear].filter(Boolean).join(' - ') ??
+          'Pantau progress, kuis, refleksi, dan aktivitas siswa.'
+        }
+        actions={
+          <Button asChild variant="outline">
+            <Link href="/teacher/classes">
+              <ArrowLeft className="h-4 w-4" />
+              Kembali
+            </Link>
+          </Button>
+        }
       />
 
       <TeacherClassDetailView data={data} />

@@ -13,7 +13,7 @@ import { getStudentDashboardData } from '@/lib/student/data';
 
 export default async function StudentDashboardPage() {
   const profile = (await requireStudent()) ?? demoStudentProfile;
-  const dashboard = await getStudentDashboardData(profile.id);
+  const dashboard = await getStudentDashboardData(profile);
   const modules = dashboard.modules;
   const completedCount = modules.filter((moduleItem) => moduleItem.status === 'completed').length;
   const averageProgress = modules.length
@@ -22,7 +22,9 @@ export default async function StudentDashboardPage() {
   const activeModule =
     modules.find((moduleItem) => moduleItem.status === 'in_progress') ??
     modules.find((moduleItem) => moduleItem.status === 'not_started') ??
+    modules.find((moduleItem) => moduleItem.status !== 'completed' && moduleItem.status !== 'locked') ??
     modules[0];
+  const recommendedModules = modules.filter((moduleItem) => moduleItem.status !== 'completed').slice(0, 3);
 
   return (
     <div>
@@ -56,6 +58,10 @@ export default async function StudentDashboardPage() {
                   <p className="text-sm font-semibold text-gold">Lanjutkan Belajar</p>
                   <h2 className="mt-3 text-2xl font-extrabold">{activeModule.title}</h2>
                   <p className="mt-3 text-sm leading-6 text-white/75">{activeModule.description}</p>
+                  <div className="mt-4 flex flex-wrap gap-2 text-xs font-bold text-white/80">
+                    <span className="rounded-full bg-white/12 px-3 py-1">{activeModule.lessonsCount} pelajaran</span>
+                    <span className="rounded-full bg-white/12 px-3 py-1">{activeModule.estimatedMinutes} menit</span>
+                  </div>
                   <ProgressBar
                     value={activeModule.progress}
                     showValue
@@ -97,9 +103,12 @@ export default async function StudentDashboardPage() {
                   ))}
                 </div>
               ) : (
-                <p className="rounded-2xl bg-mint/50 p-4 text-sm leading-6 text-muted-foreground">
-                  Belum ada pengumuman baru untuk kelasmu.
-                </p>
+                <EmptyState
+                  className="min-h-40 bg-mint/35"
+                  icon={Bell}
+                  title="Belum ada pengumuman"
+                  description="Pengumuman global atau kelas akan tampil di sini."
+                />
               )}
             </SectionCard>
           </div>
@@ -112,28 +121,45 @@ export default async function StudentDashboardPage() {
                   Lihat semua
                 </Link>
               </div>
-              <div className="grid gap-5 md:grid-cols-2 2xl:grid-cols-3">
-                {modules.slice(0, 3).map((moduleItem) => (
-                  <ModuleCard key={moduleItem.id} {...moduleItem} href={`/student/modules/${moduleItem.id}`} />
-                ))}
-              </div>
+              {recommendedModules.length ? (
+                <div className="grid gap-5 md:grid-cols-2 2xl:grid-cols-3">
+                  {recommendedModules.map((moduleItem) => (
+                    <ModuleCard key={moduleItem.id} {...moduleItem} href={`/student/modules/${moduleItem.id}`} />
+                  ))}
+                </div>
+              ) : (
+                <EmptyState
+                  icon={Trophy}
+                  title="Semua modul sudah selesai"
+                  description="Capaianmu akan tetap tersimpan. Modul baru akan muncul saat guru mempublikasikannya."
+                />
+              )}
             </div>
 
             <SectionCard>
               <p className="font-bold text-ink">Ringkasan Aktivitas</p>
               <div className="mt-5 space-y-5">
                 <ProgressBar value={averageProgress} label="Progress Belajar" showValue />
-                <div className="space-y-4">
-                  {dashboard.activities.map((activity) => (
-                    <div key={`${activity.title}-${activity.time}`} className="flex items-start gap-3 border-t border-border pt-4">
-                      <span className="mt-1 h-2.5 w-2.5 rounded-full bg-primary" />
-                      <div>
-                        <p className="text-sm font-semibold text-foreground">{activity.title}</p>
-                        <p className="mt-1 text-xs text-muted-foreground">{activity.time}</p>
+                {dashboard.activities.length ? (
+                  <div className="space-y-4">
+                    {dashboard.activities.map((activity) => (
+                      <div key={`${activity.title}-${activity.time}`} className="flex items-start gap-3 border-t border-border pt-4">
+                        <span className="mt-1 h-2.5 w-2.5 rounded-full bg-primary" />
+                        <div>
+                          <p className="text-sm font-semibold text-foreground">{activity.title}</p>
+                          <p className="mt-1 text-xs text-muted-foreground">{activity.time}</p>
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                ) : (
+                  <EmptyState
+                    className="min-h-40 bg-mint/35"
+                    icon={ClipboardCheck}
+                    title="Belum ada aktivitas"
+                    description="Aktivitas kuis, refleksi, dan progress modul akan muncul setelah kamu mulai belajar."
+                  />
+                )}
               </div>
             </SectionCard>
           </div>

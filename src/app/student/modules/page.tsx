@@ -6,7 +6,7 @@ import { getStudentModules } from '@/lib/student/data';
 
 export default async function StudentModulesPage() {
   const profile = (await requireStudent()) ?? demoStudentProfile;
-  const modules = await getStudentModules(profile.id);
+  const modules = await getStudentModules(profile);
 
   return (
     <div>

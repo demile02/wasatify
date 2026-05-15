@@ -28,8 +28,10 @@ export const teacherNavigation: NavigationItem[] = [
   { label: 'Modul', href: '/teacher/modules', icon: 'BookOpen' },
   { label: 'Kuis', href: '/teacher/quizzes', icon: 'ClipboardCheck' },
   { label: 'Siswa', href: '/teacher/students', icon: 'GraduationCap' },
+  { label: 'Refleksi', href: '/teacher/reflections', icon: 'MessageSquareText' },
   { label: 'Laporan', href: '/teacher/reports', icon: 'FileText' },
   { label: 'Pengumuman', href: '/teacher/announcements', icon: 'Megaphone' },
+  { label: 'Media', href: '/teacher/media', icon: 'ImageIcon' },
   { label: 'Pesan', href: '/teacher/messages', icon: 'Mail' },
   { label: 'Pengaturan', href: '/teacher/settings', icon: 'Settings' },
 ];

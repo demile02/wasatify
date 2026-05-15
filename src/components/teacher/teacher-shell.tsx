@@ -8,8 +8,10 @@ import {
   FileText,
   GraduationCap,
   Home,
+  ImageIcon,
   Mail,
   Megaphone,
+  MessageSquareText,
   Search,
   Settings,
   Users,
@@ -30,10 +32,12 @@ type TeacherShellProps = {
 
 const iconMap = {
   Home,
+  ImageIcon,
   Users,
   BookOpen,
   ClipboardCheck,
   GraduationCap,
+  MessageSquareText,
   FileText,
   Megaphone,
   Mail,
@@ -166,8 +170,10 @@ function isActivePath(pathname: string, href: string, label: string) {
   if (label === 'Kelas Saya') return pathname.startsWith('/teacher/classes');
   if (label === 'Kuis') return pathname.startsWith('/teacher/quizzes');
   if (label === 'Siswa') return pathname.startsWith('/teacher/students');
+  if (label === 'Refleksi') return pathname.startsWith('/teacher/reflections');
   if (label === 'Laporan') return pathname.startsWith('/teacher/reports');
   if (label === 'Pengumuman') return pathname.startsWith('/teacher/announcements');
+  if (label === 'Media') return pathname.startsWith('/teacher/media');
   if (label === 'Pesan') return pathname.startsWith('/teacher/messages');
   if (label === 'Pengaturan') return pathname.startsWith('/teacher/settings');
   return pathname === href || pathname.startsWith(`${href}/`);

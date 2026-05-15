@@ -1,25 +1,6 @@
-import type { Profile } from '@/lib/types';
+import type { Profile, StudentActivity, StudentLearningModule } from '@/lib/types';
 
-export type StudentModule = {
-  id: string;
-  slug: string;
-  title: string;
-  description: string;
-  status: 'completed' | 'in_progress' | 'not_started' | 'locked';
-  orderIndex?: number;
-  lessonsCount: number;
-  duration: string;
-  progress: number;
-  imageSrc?: string;
-  completedAt?: string;
-  lastAccessedAt?: string;
-};
-
-export type StudentActivity = {
-  title: string;
-  time: string;
-  type: 'quiz' | 'reflection' | 'module';
-};
+export type StudentModule = StudentLearningModule;
 
 export const demoStudentProfile: Profile = {
   id: 'demo-student',
@@ -27,6 +8,8 @@ export const demoStudentProfile: Profile = {
   full_name: 'Ahmad Fauzan',
   email: 'siswa@wasatify.demo',
   class_name: 'VIII A',
+  xp: 2450,
+  streak_count: 7,
 };
 
 export const demoStudentModules: StudentModule[] = [
@@ -38,6 +21,7 @@ export const demoStudentModules: StudentModule[] = [
     status: 'completed',
     orderIndex: 1,
     lessonsCount: 6,
+    estimatedMinutes: 30,
     duration: '30 menit',
     progress: 100,
   },
@@ -49,6 +33,7 @@ export const demoStudentModules: StudentModule[] = [
     status: 'in_progress',
     orderIndex: 2,
     lessonsCount: 8,
+    estimatedMinutes: 40,
     duration: '40 menit',
     progress: 60,
   },
@@ -60,6 +45,7 @@ export const demoStudentModules: StudentModule[] = [
     status: 'not_started',
     orderIndex: 3,
     lessonsCount: 7,
+    estimatedMinutes: 35,
     duration: '35 menit',
     progress: 0,
   },
@@ -71,6 +57,7 @@ export const demoStudentModules: StudentModule[] = [
     status: 'not_started',
     orderIndex: 4,
     lessonsCount: 10,
+    estimatedMinutes: 50,
     duration: '50 menit',
     progress: 0,
   },
@@ -82,6 +69,7 @@ export const demoStudentModules: StudentModule[] = [
     status: 'locked',
     orderIndex: 5,
     lessonsCount: 9,
+    estimatedMinutes: 45,
     duration: '45 menit',
     progress: 0,
   },
@@ -93,6 +81,7 @@ export const demoStudentModules: StudentModule[] = [
     status: 'locked',
     orderIndex: 6,
     lessonsCount: 6,
+    estimatedMinutes: 30,
     duration: '30 menit',
     progress: 0,
   },

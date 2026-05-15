@@ -567,6 +567,12 @@ with check (
   and public.student_can_read_module(module_id, auth.uid())
 );
 
+create policy "reflections_update_teacher_review"
+on public.reflections for update
+to authenticated
+using (public.is_teacher() and public.teacher_can_read_student(student_id))
+with check (public.is_teacher() and public.teacher_can_read_student(student_id));
+
 create policy "reflections_delete_own"
 on public.reflections for delete
 to authenticated
@@ -597,6 +603,11 @@ using (
   or (public.is_teacher() and public.teacher_can_read_student(student_id))
 );
 
+create policy "student_achievements_insert_own"
+on public.student_achievements for insert
+to authenticated
+with check (public.is_student() and student_id = auth.uid());
+
 create policy "announcements_admin_all"
 on public.announcements for all
 to authenticated
@@ -609,7 +620,9 @@ to authenticated
 using (
   teacher_id = auth.uid()
   or (
+    status = 'published'
     published_at is not null
+    and published_at <= now()
     and (
       class_id is null
       or exists (

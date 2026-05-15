@@ -1,5 +1,6 @@
 import { demoStudentModules, type StudentModule } from '@/lib/demo/student';
 import { getStudentModules } from '@/lib/student/data';
+import type { Profile } from '@/lib/types';
 import { createClient, isSupabaseConfigured } from '@/lib/supabase/server';
 
 export type StudentLesson = {
@@ -9,6 +10,7 @@ export type StudentLesson = {
   slug: string;
   type: 'article' | 'video' | 'infographic' | 'reflection';
   content: string | null;
+  reflectionPrompt: string | null;
   videoUrl: string | null;
   infographicUrl: string | null;
   orderIndex: number;
@@ -43,6 +45,16 @@ export type StudentQuiz = {
   questions: QuizQuestion[];
 };
 
+export type QuizReviewQuestion = {
+  id: string;
+  questionText: string;
+  options: QuizOption[];
+  correctAnswer: string;
+  selectedAnswer: string;
+  explanation: string | null;
+  isCorrect: boolean;
+};
+
 export type ModuleLearningData = {
   module: StudentModule | null;
   lessons: StudentLesson[];
@@ -58,13 +70,18 @@ export type QuizLearningData = {
 
 export type QuizResultData = {
   module: StudentModule | null;
+  quizId?: string;
+  quizTitle?: string;
   attemptId?: string;
   score: number;
   correctAnswers: number;
   wrongAnswers: number;
   totalQuestions: number;
+  totalPoints: number;
+  earnedPoints: number;
   elapsedSeconds: number;
   passed: boolean;
+  reviewQuestions: QuizReviewQuestion[];
   available: boolean;
 };
 
@@ -75,6 +92,7 @@ type LessonRow = {
   slug: string;
   type: StudentLesson['type'];
   content: string | null;
+  reflection_prompt?: string | null;
   video_url: string | null;
   infographic_url?: string | null;
   order_index: number | null;
@@ -110,7 +128,11 @@ type QuizQuestionRow = {
 type QuizAttemptRow = {
   id: string;
   quiz_id: string;
+  answers?: Record<string, unknown> | null;
   score: number | null;
+  total_points?: number | null;
+  earned_points?: number | null;
+  passed?: boolean | null;
   total_questions: number | null;
   correct_answers: number | null;
   started_at: string | null;
@@ -126,6 +148,8 @@ const demoLessons: StudentLesson[] = [
     type: 'article',
     content:
       'Tawazun berarti menjaga keseimbangan dalam berbagai aspek kehidupan agar tidak berlebihan dan tidak mengabaikan. Dalam Islam, tawazun mengajarkan keseimbangan antara dunia dan akhirat, ibadah dan usaha, hak diri sendiri dan hak orang lain. Sikap ini membantu seorang muslim tetap adil, bijak, dan bertanggung jawab dalam mengambil keputusan.',
+    reflectionPrompt:
+      'Bagian mana dari kehidupanmu yang perlu lebih seimbang antara belajar, ibadah, keluarga, dan waktu pribadi?',
     videoUrl: null,
     infographicUrl: '/assets/wasatify-tawazun.png',
     orderIndex: 1,
@@ -167,9 +191,10 @@ const demoQuiz: StudentQuiz = {
 
 export async function getModuleLearningData(
   moduleId: string,
-  studentId?: string,
+  student?: Profile | string,
 ): Promise<ModuleLearningData> {
-  const moduleItem = await findStudentModule(moduleId, studentId);
+  const studentId = typeof student === 'string' ? student : student?.id;
+  const moduleItem = await findStudentModule(moduleId, student);
 
   if (!moduleItem) {
     return { module: null, lessons: [], completedLessonIds: [], isDemo: !isSupabaseConfigured };
@@ -189,7 +214,9 @@ export async function getModuleLearningData(
     const [lessonsResult, progressResult] = await Promise.all([
       supabase
         .from('lessons')
-        .select('id, module_id, title, slug, type, content, video_url, infographic_url, order_index, estimated_minutes')
+        .select(
+          'id, module_id, title, slug, type, content, reflection_prompt, video_url, infographic_url, order_index, estimated_minutes',
+        )
         .eq('module_id', moduleItem.id)
         .order('order_index', { ascending: true }),
       studentId
@@ -291,21 +318,21 @@ export async function getQuizResultData(
     const supabase = await createClient();
     const { data: quizRows, error: quizError } = await supabase
       .from('quizzes')
-      .select('id, passing_score')
+      .select('id, title, passing_score')
       .eq('module_id', moduleItem.id)
       .eq('is_published', true);
 
     if (quizError) throw quizError;
 
-    const quizzes = (quizRows ?? []) as { id: string; passing_score: number | null }[];
+    const quizzes = (quizRows ?? []) as { id: string; title: string; passing_score: number | null }[];
     if (!quizzes.length) return emptyQuizResult(moduleItem);
 
     const quizIds = quizzes.map((quiz) => quiz.id);
-    const passingScoreByQuiz = new Map(quizzes.map((quiz) => [quiz.id, quiz.passing_score ?? 70]));
+    const quizMetaById = new Map(quizzes.map((quiz) => [quiz.id, quiz]));
 
     let query = supabase
       .from('quiz_attempts')
-      .select('id, quiz_id, score, total_questions, correct_answers, started_at, submitted_at')
+      .select('id, quiz_id, answers, score, total_points, earned_points, passed, total_questions, correct_answers, started_at, submitted_at')
       .eq('student_id', studentId)
       .in('quiz_id', quizIds)
       .order('submitted_at', { ascending: false })
@@ -324,16 +351,36 @@ export async function getQuizResultData(
     const score = Math.round(Number(attempt.score ?? 0));
     const totalQuestions = attempt.total_questions ?? 0;
     const correctAnswers = attempt.correct_answers ?? 0;
+    const questionRows = await getQuizReviewQuestions(attempt.quiz_id);
+    const answers = attempt.answers ?? {};
+    const reviewQuestions = questionRows.map((question) => {
+      const selectedAnswer = String(answers[question.id] ?? '');
+      return {
+        id: question.id,
+        questionText: question.questionText,
+        options: question.options,
+        correctAnswer: question.correctAnswer,
+        selectedAnswer,
+        explanation: question.explanation,
+        isCorrect: selectedAnswer === question.correctAnswer,
+      };
+    });
+    const quizMeta = quizMetaById.get(attempt.quiz_id);
 
     return {
       module: moduleItem,
+      quizId: attempt.quiz_id,
+      quizTitle: quizMeta?.title,
       attemptId: attempt.id,
       score,
       correctAnswers,
       wrongAnswers: Math.max(totalQuestions - correctAnswers, 0),
       totalQuestions,
+      totalPoints: attempt.total_points ?? questionRows.reduce((total, question) => total + question.points, 0),
+      earnedPoints: attempt.earned_points ?? 0,
       elapsedSeconds: calculateElapsedSeconds(attempt.started_at, attempt.submitted_at),
-      passed: score >= (passingScoreByQuiz.get(attempt.quiz_id) ?? 70),
+      passed: attempt.passed ?? score >= (quizMeta?.passing_score ?? 70),
+      reviewQuestions,
       available: true,
     };
   } catch {
@@ -341,8 +388,20 @@ export async function getQuizResultData(
   }
 }
 
-async function findStudentModule(moduleId: string, studentId?: string) {
-  const modules = await getStudentModules(studentId);
+async function getQuizReviewQuestions(quizId: string) {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('quiz_questions')
+    .select('id, question_type, question_text, options, correct_answer, explanation, show_explanation, points, order_index')
+    .eq('quiz_id', quizId)
+    .order('order_index', { ascending: true });
+
+  if (error) throw error;
+  return ((data ?? []) as QuizQuestionRow[]).map(mapQuizQuestionRow);
+}
+
+async function findStudentModule(moduleId: string, student?: Profile | string) {
+  const modules = await getStudentModules(student);
   return modules.find((moduleItem) => moduleItem.id === moduleId || moduleItem.slug === moduleId) ?? null;
 }
 
@@ -354,6 +413,7 @@ function mapLessonRow(row: LessonRow): StudentLesson {
     slug: row.slug,
     type: row.type,
     content: row.content,
+    reflectionPrompt: row.reflection_prompt ?? null,
     videoUrl: row.video_url,
     infographicUrl: row.infographic_url ?? null,
     orderIndex: row.order_index ?? 1,
@@ -434,8 +494,11 @@ function emptyQuizResult(moduleItem: StudentModule | null): QuizResultData {
     correctAnswers: 0,
     wrongAnswers: 0,
     totalQuestions: 0,
+    totalPoints: 0,
+    earnedPoints: 0,
     elapsedSeconds: 0,
     passed: false,
+    reviewQuestions: [],
     available: false,
   };
 }

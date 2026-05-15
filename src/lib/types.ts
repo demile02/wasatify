@@ -52,10 +52,35 @@ export type Profile = {
   school_name?: string | null;
   class_id?: string | null;
   class_name?: string | null;
+  last_active_at?: string | null;
   subject?: string | null;
   bio?: string | null;
+  xp?: number | null;
+  streak_count?: number | null;
   created_at?: string;
   updated_at?: string;
+};
+
+export type StudentLearningModule = {
+  id: string;
+  slug: string;
+  title: string;
+  description: string;
+  status: ModuleStatus;
+  orderIndex?: number;
+  lessonsCount: number;
+  estimatedMinutes: number;
+  duration: string;
+  progress: number;
+  imageSrc?: string;
+  completedAt?: string;
+  lastAccessedAt?: string;
+};
+
+export type StudentActivity = {
+  title: string;
+  time: string;
+  type: 'quiz' | 'reflection' | 'module';
 };
 
 export type Class = {
@@ -64,6 +89,7 @@ export type Class = {
   name: string;
   description?: string | null;
   grade_level?: string | null;
+  academic_year?: string | null;
   join_code: string;
   created_at: string;
   updated_at: string;
@@ -78,6 +104,7 @@ export type Module = {
   slug: string;
   description: string;
   cover_image_path?: string | null;
+  difficulty?: 'pemula' | 'menengah' | 'lanjut' | null;
   tags: string[];
   status: ModulePublishStatus;
   is_public: boolean;
@@ -96,6 +123,7 @@ export type Lesson = {
   slug: string;
   type: LessonType;
   content?: string | null;
+  reflection_prompt?: string | null;
   video_url?: string | null;
   infographic_url?: string | null;
   order_index: number;
@@ -114,6 +142,9 @@ export type Quiz = {
   passing_score: number;
   max_attempts: number;
   time_limit_seconds?: number | null;
+  allow_retake?: boolean | null;
+  show_explanation?: boolean | null;
+  shuffle_questions?: boolean | null;
   is_published: boolean;
   created_at: string;
   updated_at: string;
@@ -164,6 +195,9 @@ export type QuizAttempt = {
   status: QuizAttemptStatus;
   answers: Record<string, JsonValue>;
   score?: number | null;
+  total_points?: number | null;
+  earned_points?: number | null;
+  passed?: boolean | null;
   total_questions?: number | null;
   correct_answers?: number | null;
   started_at: string;
@@ -178,6 +212,9 @@ export type Reflection = {
   module_id: string;
   reflection_text: string;
   action_plan?: string | null;
+  teacher_note?: string | null;
+  reviewed_by?: string | null;
+  reviewed_at?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -207,6 +244,7 @@ export type Announcement = {
   class_id?: string | null;
   title: string;
   content: string;
+  status?: 'draft' | 'published';
   priority: 'low' | 'normal' | 'high';
   published_at?: string | null;
   created_at: string;
@@ -217,9 +255,11 @@ export type MediaAsset = {
   id: string;
   owner_id?: string | null;
   module_id?: string | null;
+  title?: string | null;
   bucket: string;
   path: string;
   public_url?: string | null;
+  file_type?: 'image' | 'video' | 'pdf' | 'document' | 'other' | null;
   mime_type?: string | null;
   size_bytes?: number | null;
   kind: MediaKind;

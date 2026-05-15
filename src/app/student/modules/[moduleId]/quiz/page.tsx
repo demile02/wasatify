@@ -1,9 +1,9 @@
-import { ClipboardList } from 'lucide-react';
+import { ArrowLeft, ClipboardList, Lock } from 'lucide-react';
 import Link from 'next/link';
 import { EmptyState } from '@/components/shared/empty-state';
 import { PageHeader } from '@/components/shared/page-header';
 import { Button } from '@/components/ui/button';
-import { QuizRunner } from '@/components/student/quiz-runner';
+import { QuizPlayer } from '@/components/student/quiz-player';
 import { requireStudent } from '@/lib/auth/server';
 import { demoStudentProfile } from '@/lib/demo/student';
 import { getQuizLearningData } from '@/lib/student/learning';
@@ -26,6 +26,21 @@ export default async function StudentQuizPage({ params }: QuizPageProps) {
         action={
           <Button asChild>
             <Link href="/student/modules">Kembali ke Modul</Link>
+          </Button>
+        }
+      />
+    );
+  }
+
+  if (quizData.module.status === 'locked') {
+    return (
+      <EmptyState
+        icon={Lock}
+        title="Kuis masih terkunci"
+        description="Selesaikan modul sebelumnya untuk membuka kuis ini."
+        action={
+          <Button asChild>
+            <Link href="/student/modules">Lihat Modul Belajar</Link>
           </Button>
         }
       />
@@ -59,12 +74,20 @@ export default async function StudentQuizPage({ params }: QuizPageProps) {
     <div>
       <PageHeader
         eyebrow="Kuis Pemahaman"
-        title={quizData.quiz.title}
-        description={quizData.quiz.description ?? `Uji pemahamanmu setelah mempelajari ${quizData.module.title}.`}
+        title="Kuis Pemahaman"
+        description={quizData.module.title}
+        actions={
+          <Button asChild variant="outline">
+            <Link href={`/student/modules/${quizData.module.id}`}>
+              <ArrowLeft className="h-4 w-4" />
+              Kembali
+            </Link>
+          </Button>
+        }
       />
 
       <div className="mt-8">
-        <QuizRunner moduleId={quizData.module.id} quiz={quizData.quiz} />
+        <QuizPlayer moduleId={quizData.module.id} quiz={quizData.quiz} />
       </div>
     </div>
   );

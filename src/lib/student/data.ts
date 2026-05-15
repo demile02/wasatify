@@ -1,33 +1,59 @@
-import { demoStudentActivities, demoStudentModules, type StudentActivity, type StudentModule } from '@/lib/demo/student';
+import { demoStudentActivities, demoStudentModules, type StudentModule } from '@/lib/demo/student';
+import {
+  mergeModulesWithStudentProgress,
+  type LessonCountRow,
+  type ModuleProgressRow,
+  type PublishedModuleRow,
+} from '@/lib/modules/status';
 import { createClient, isSupabaseConfigured } from '@/lib/supabase/server';
-import type { ModuleStatus } from '@/lib/types';
+import type { Profile, StudentActivity } from '@/lib/types';
 
-type ModuleRow = {
-  id: string;
-  slug: string;
-  title: string;
-  description: string;
-  estimated_minutes: number | null;
-  order_index: number | null;
-};
-
-type LessonRow = {
-  id: string;
-  module_id: string;
-};
-
-type ProgressRow = {
-  module_id: string;
-  status: ModuleStatus | null;
-  progress_percent: number | null;
-  completed_at: string | null;
-  last_accessed_at: string | null;
+type StudentContext = {
+  id?: string;
+  classId?: string | null;
+  xp?: number | null;
+  streakCount?: number | null;
 };
 
 type AnnouncementRow = {
   title: string;
   content: string;
   published_at: string | null;
+};
+
+type ProfileStatsRow = {
+  xp: number | null;
+  streak_count: number | null;
+};
+
+type QuizAttemptActivityRow = {
+  id: string;
+  quiz_id: string;
+  score: number | null;
+  submitted_at: string | null;
+  created_at: string;
+};
+
+type ReflectionActivityRow = {
+  id: string;
+  module_id: string;
+  created_at: string;
+};
+
+type ModuleProgressActivityRow = {
+  id: string;
+  module_id: string;
+  status: string | null;
+  progress_percent: number | null;
+  completed_at: string | null;
+  updated_at: string;
+  created_at: string;
+};
+
+type QuizTitleRow = {
+  id: string;
+  title: string;
+  module_id: string;
 };
 
 export type StudentDashboardData = {
@@ -40,81 +66,52 @@ export type StudentDashboardData = {
   isDemo: boolean;
 };
 
-export async function getStudentModules(studentId?: string): Promise<StudentModule[]> {
+type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
+
+export async function getStudentModules(student?: Profile | string): Promise<StudentModule[]> {
   if (!isSupabaseConfigured) return demoStudentModules;
+
+  const context = normalizeStudentContext(student);
 
   try {
     const supabase = await createClient();
     const { data, error } = await supabase
       .from('modules')
-      .select('id, slug, title, description, estimated_minutes, order_index')
+      .select('id, slug, title, description, cover_image_path, estimated_minutes, order_index')
       .eq('status', 'published')
       .order('order_index', { ascending: true });
 
     if (error) throw error;
-    const rows = (data ?? []) as ModuleRow[];
 
-    if (!rows.length) return [];
+    const moduleRows = (data ?? []) as PublishedModuleRow[];
+    if (!moduleRows.length) return [];
 
-    const moduleIds = rows.map((moduleRow) => moduleRow.id);
+    const moduleIds = moduleRows.map((moduleRow) => moduleRow.id);
     const [lessonsResult, progressResult] = await Promise.all([
-      supabase.from('lessons').select('id, module_id').in('module_id', moduleIds),
-      studentId
+      supabase.from('lessons').select('module_id').in('module_id', moduleIds),
+      context.id
         ? supabase
             .from('module_progress')
             .select('module_id, status, progress_percent, completed_at, last_accessed_at')
-            .eq('student_id', studentId)
+            .eq('student_id', context.id)
             .in('module_id', moduleIds)
         : Promise.resolve({ data: [], error: null }),
     ]);
 
-    const lessonRows = lessonsResult.error ? [] : ((lessonsResult.data ?? []) as LessonRow[]);
-    const progressRows = progressResult.error ? [] : ((progressResult.data ?? []) as ProgressRow[]);
-    const lessonCountByModule = new Map<string, number>();
-    const progressByModule = new Map<string, ProgressRow>();
+    if (lessonsResult.error) throw lessonsResult.error;
+    if (progressResult.error) throw progressResult.error;
 
-    for (const lesson of lessonRows) {
-      lessonCountByModule.set(lesson.module_id, (lessonCountByModule.get(lesson.module_id) ?? 0) + 1);
-    }
-
-    for (const progress of progressRows) {
-      progressByModule.set(progress.module_id, progress);
-    }
-
-    const modules: StudentModule[] = [];
-
-    rows.forEach((moduleRow, index) => {
-      const progress = progressByModule.get(moduleRow.id);
-      const progressPercent = clampProgress(progress?.progress_percent ?? 0);
-      let status = resolveProgressStatus(progress, progressPercent);
-      const previousModule = modules[index - 1];
-
-      if (index > 0 && previousModule?.status !== 'completed') {
-        status = 'locked';
-      }
-
-      modules.push({
-        id: moduleRow.id,
-        slug: moduleRow.slug,
-        title: moduleRow.title,
-        description: moduleRow.description,
-        orderIndex: moduleRow.order_index ?? index + 1,
-        status,
-        lessonsCount: lessonCountByModule.get(moduleRow.id) ?? 0,
-        duration: `${moduleRow.estimated_minutes ?? 30} menit`,
-        progress: status === 'locked' ? 0 : progressPercent,
-        completedAt: progress?.completed_at ?? undefined,
-        lastAccessedAt: progress?.last_accessed_at ?? undefined,
-      });
+    return mergeModulesWithStudentProgress({
+      modules: moduleRows,
+      lessons: (lessonsResult.data ?? []) as LessonCountRow[],
+      progressRows: (progressResult.data ?? []) as ModuleProgressRow[],
     });
-
-    return modules;
   } catch {
-    return demoStudentModules;
+    return [];
   }
 }
 
-export async function getStudentDashboardData(studentId?: string): Promise<StudentDashboardData> {
+export async function getStudentDashboardData(student?: Profile | string): Promise<StudentDashboardData> {
   if (!isSupabaseConfigured) {
     return {
       modules: demoStudentModules,
@@ -138,48 +135,36 @@ export async function getStudentDashboardData(studentId?: string): Promise<Stude
     };
   }
 
+  const context = normalizeStudentContext(student);
+
   try {
     const supabase = await createClient();
-    const modules = await getStudentModules(studentId);
-    const [quizAttemptsResult, announcementsResult] = await Promise.all([
-      studentId
-        ? supabase
-            .from('quiz_attempts')
-            .select('id', { count: 'exact', head: true })
-            .eq('student_id', studentId)
-        : Promise.resolve({ count: 0, error: null }),
-      supabase
-        .from('announcements')
-        .select('title, content, published_at')
-        .not('published_at', 'is', null)
-        .order('published_at', { ascending: false })
-        .limit(3),
+    const modules = await getStudentModules(student);
+    const [profileStats, quizAttemptsCount, announcements, activities] = await Promise.all([
+      getProfileStats(supabase, context),
+      getQuizAttemptsCount(supabase, context.id),
+      getStudentAnnouncements(supabase, context.classId),
+      getRecentActivities(supabase, context.id, modules),
     ]);
-
-    const completedModules = modules.filter((moduleItem) => moduleItem.status === 'completed').length;
-    const quizAttemptsCount = quizAttemptsResult.error ? 0 : quizAttemptsResult.count ?? 0;
-    const announcements = announcementsResult.error
-      ? []
-      : ((announcementsResult.data ?? []) as AnnouncementRow[]);
 
     return {
       modules,
       quizAttemptsCount,
-      streakDays: Math.min(Math.max(completedModules, 0) + (quizAttemptsCount > 0 ? 1 : 0), 14),
-      points: completedModules * 150 + quizAttemptsCount * 50,
+      streakDays: profileStats.streakCount,
+      points: profileStats.xp,
       announcements,
-      activities: buildActivities(modules, quizAttemptsCount),
+      activities,
       isDemo: false,
     };
   } catch {
     return {
-      modules: demoStudentModules,
-      quizAttemptsCount: 18,
-      streakDays: 7,
-      points: 2450,
+      modules: [],
+      quizAttemptsCount: 0,
+      streakDays: 0,
+      points: 0,
       announcements: [],
-      activities: demoStudentActivities,
-      isDemo: true,
+      activities: [],
+      isDemo: false,
     };
   }
 }
@@ -189,33 +174,197 @@ export async function getStudentModule(moduleId: string, studentId?: string) {
   return modules.find((moduleItem) => moduleItem.id === moduleId || moduleItem.slug === moduleId) ?? modules[0];
 }
 
-function resolveProgressStatus(progress: ProgressRow | undefined, progressPercent: number): ModuleStatus {
-  if (!progress) return 'not_started';
-  if (progress.status === 'completed' || progress.completed_at || progressPercent >= 100) return 'completed';
-  if (progress.status === 'in_progress' || progressPercent > 0) return 'in_progress';
-  return 'not_started';
+function normalizeStudentContext(student?: Profile | string): StudentContext {
+  if (!student) return {};
+  if (typeof student === 'string') return { id: student };
+
+  return {
+    id: student.id,
+    classId: student.class_id,
+    xp: student.xp,
+    streakCount: student.streak_count,
+  };
 }
 
-function clampProgress(value: number) {
-  return Math.min(Math.max(Math.round(value), 0), 100);
+async function getProfileStats(
+  supabase: SupabaseServerClient,
+  context: StudentContext,
+): Promise<{ xp: number; streakCount: number }> {
+  if (typeof context.xp === 'number' || typeof context.streakCount === 'number') {
+    return {
+      xp: Math.max(Math.round(context.xp ?? 0), 0),
+      streakCount: Math.max(Math.round(context.streakCount ?? 0), 0),
+    };
+  }
+
+  if (!context.id) return { xp: 0, streakCount: 0 };
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('xp, streak_count')
+    .eq('id', context.id)
+    .maybeSingle<ProfileStatsRow>();
+
+  if (error || !data) return { xp: 0, streakCount: 0 };
+
+  return {
+    xp: Math.max(Math.round(data.xp ?? 0), 0),
+    streakCount: Math.max(Math.round(data.streak_count ?? 0), 0),
+  };
 }
 
-function buildActivities(modules: StudentModule[], quizAttemptsCount: number): StudentActivity[] {
-  const completed = modules.find((moduleItem) => moduleItem.status === 'completed');
-  const active = modules.find((moduleItem) => moduleItem.status === 'in_progress');
-  const activities: StudentActivity[] = [];
+async function getQuizAttemptsCount(supabase: SupabaseServerClient, studentId?: string) {
+  if (!studentId) return 0;
 
-  if (quizAttemptsCount > 0) {
-    activities.push({ title: `Mengerjakan ${quizAttemptsCount} kuis`, time: 'Terbaru', type: 'quiz' });
+  const { count, error } = await supabase
+    .from('quiz_attempts')
+    .select('id', { count: 'exact', head: true })
+    .eq('student_id', studentId);
+
+  return error ? 0 : count ?? 0;
+}
+
+async function getStudentAnnouncements(
+  supabase: SupabaseServerClient,
+  classId?: string | null,
+): Promise<AnnouncementRow[]> {
+  let query = supabase
+    .from('announcements')
+    .select('title, content, published_at')
+    .eq('status', 'published')
+    .not('published_at', 'is', null)
+    .lte('published_at', new Date().toISOString())
+    .order('published_at', { ascending: false })
+    .limit(3);
+
+  query = classId ? query.or(`class_id.is.null,class_id.eq.${classId}`) : query.is('class_id', null);
+
+  const { data, error } = await query;
+
+  return error ? [] : ((data ?? []) as AnnouncementRow[]);
+}
+
+async function getRecentActivities(
+  supabase: SupabaseServerClient,
+  studentId: string | undefined,
+  modules: StudentModule[],
+): Promise<StudentActivity[]> {
+  if (!studentId) return [];
+
+  const moduleTitleById = new Map(modules.map((moduleItem) => [moduleItem.id, moduleItem.title]));
+  const [attemptsResult, reflectionsResult, progressResult] = await Promise.all([
+    supabase
+      .from('quiz_attempts')
+      .select('id, quiz_id, score, submitted_at, created_at')
+      .eq('student_id', studentId)
+      .order('submitted_at', { ascending: false, nullsFirst: false })
+      .order('created_at', { ascending: false })
+      .limit(3),
+    supabase
+      .from('reflections')
+      .select('id, module_id, created_at')
+      .eq('student_id', studentId)
+      .order('created_at', { ascending: false })
+      .limit(3),
+    supabase
+      .from('module_progress')
+      .select('id, module_id, status, progress_percent, completed_at, updated_at, created_at')
+      .eq('student_id', studentId)
+      .order('updated_at', { ascending: false })
+      .limit(3),
+  ]);
+
+  const attempts = attemptsResult.error ? [] : ((attemptsResult.data ?? []) as QuizAttemptActivityRow[]);
+  const reflections = reflectionsResult.error ? [] : ((reflectionsResult.data ?? []) as ReflectionActivityRow[]);
+  const progressRows = progressResult.error ? [] : ((progressResult.data ?? []) as ModuleProgressActivityRow[]);
+  const quizTitleById = await getQuizTitlesById(
+    supabase,
+    attempts.map((attempt) => attempt.quiz_id),
+  );
+  const activityItems: Array<StudentActivity & { sortAt: string }> = [];
+
+  for (const attempt of attempts) {
+    const quiz = quizTitleById.get(attempt.quiz_id);
+    activityItems.push({
+      title: quiz ? `Mengerjakan kuis "${quiz.title}"` : 'Mengerjakan kuis',
+      time: formatRelativeTime(attempt.submitted_at ?? attempt.created_at),
+      type: 'quiz',
+      sortAt: attempt.submitted_at ?? attempt.created_at,
+    });
   }
 
-  if (active) {
-    activities.push({ title: `Melanjutkan modul "${active.title}"`, time: 'Hari ini', type: 'module' });
+  for (const reflection of reflections) {
+    const moduleTitle = moduleTitleById.get(reflection.module_id);
+    activityItems.push({
+      title: moduleTitle ? `Mengumpulkan refleksi "${moduleTitle}"` : 'Mengumpulkan refleksi',
+      time: formatRelativeTime(reflection.created_at),
+      type: 'reflection',
+      sortAt: reflection.created_at,
+    });
   }
 
-  if (completed) {
-    activities.push({ title: `Menyelesaikan modul "${completed.title}"`, time: 'Sebelumnya', type: 'module' });
+  for (const progress of progressRows) {
+    const moduleTitle = moduleTitleById.get(progress.module_id);
+    const isCompleted = progress.status === 'completed' || progress.completed_at || progress.progress_percent === 100;
+    activityItems.push({
+      title: `${isCompleted ? 'Menyelesaikan' : 'Melanjutkan'} modul${moduleTitle ? ` "${moduleTitle}"` : ''}`,
+      time: formatRelativeTime(progress.completed_at ?? progress.updated_at ?? progress.created_at),
+      type: 'module',
+      sortAt: progress.completed_at ?? progress.updated_at ?? progress.created_at,
+    });
   }
 
-  return activities.length ? activities : demoStudentActivities;
+  return activityItems
+    .sort((first, second) => new Date(second.sortAt).getTime() - new Date(first.sortAt).getTime())
+    .slice(0, 5)
+    .map((activity) => ({
+      title: activity.title,
+      time: activity.time,
+      type: activity.type,
+    }));
+}
+
+async function getQuizTitlesById(supabase: SupabaseServerClient, quizIds: string[]) {
+  const uniqueQuizIds = Array.from(new Set(quizIds.filter(Boolean)));
+  const quizTitleById = new Map<string, QuizTitleRow>();
+
+  if (!uniqueQuizIds.length) return quizTitleById;
+
+  const { data, error } = await supabase
+    .from('quizzes')
+    .select('id, title, module_id')
+    .in('id', uniqueQuizIds);
+
+  if (error) return quizTitleById;
+
+  for (const quiz of (data ?? []) as QuizTitleRow[]) {
+    quizTitleById.set(quiz.id, quiz);
+  }
+
+  return quizTitleById;
+}
+
+function formatRelativeTime(value?: string | null) {
+  if (!value) return 'Baru saja';
+
+  const timestamp = new Date(value).getTime();
+  if (Number.isNaN(timestamp)) return 'Baru saja';
+
+  const diffMs = Date.now() - timestamp;
+  const diffMinutes = Math.max(Math.floor(diffMs / 60000), 0);
+
+  if (diffMinutes < 1) return 'Baru saja';
+  if (diffMinutes < 60) return `${diffMinutes} menit lalu`;
+
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours} jam lalu`;
+
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays < 7) return `${diffDays} hari lalu`;
+
+  return new Intl.DateTimeFormat('id-ID', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  }).format(new Date(value));
 }

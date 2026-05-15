@@ -13,6 +13,25 @@ values
     true,
     10485760,
     array['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'application/pdf']
+  ),
+  (
+    'media-assets',
+    'media-assets',
+    true,
+    52428800,
+    array[
+      'image/png',
+      'image/jpeg',
+      'image/webp',
+      'image/gif',
+      'video/mp4',
+      'video/webm',
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-powerpoint',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+    ]
   )
 on conflict (id) do update
 set public = excluded.public,
@@ -28,6 +47,10 @@ drop policy if exists "module_media_public_read" on storage.objects;
 drop policy if exists "module_media_teacher_upload_own_folder" on storage.objects;
 drop policy if exists "module_media_teacher_update_own_folder" on storage.objects;
 drop policy if exists "module_media_teacher_delete_own_folder" on storage.objects;
+drop policy if exists "media_assets_public_read" on storage.objects;
+drop policy if exists "media_assets_teacher_upload_own_folder" on storage.objects;
+drop policy if exists "media_assets_teacher_update_own_folder" on storage.objects;
+drop policy if exists "media_assets_teacher_delete_own_folder" on storage.objects;
 
 create policy "module_covers_public_read"
 on storage.objects for select
@@ -100,5 +123,46 @@ to authenticated
 using (
   bucket_id = 'module-media'
   and (storage.foldername(name))[1] = auth.uid()::text
+  and (public.is_teacher() or public.is_admin())
+);
+
+create policy "media_assets_public_read"
+on storage.objects for select
+to public
+using (bucket_id = 'media-assets');
+
+create policy "media_assets_teacher_upload_own_folder"
+on storage.objects for insert
+to authenticated
+with check (
+  bucket_id = 'media-assets'
+  and (storage.foldername(name))[1] = 'teacher'
+  and (storage.foldername(name))[2] = auth.uid()::text
+  and (public.is_teacher() or public.is_admin())
+);
+
+create policy "media_assets_teacher_update_own_folder"
+on storage.objects for update
+to authenticated
+using (
+  bucket_id = 'media-assets'
+  and (storage.foldername(name))[1] = 'teacher'
+  and (storage.foldername(name))[2] = auth.uid()::text
+  and (public.is_teacher() or public.is_admin())
+)
+with check (
+  bucket_id = 'media-assets'
+  and (storage.foldername(name))[1] = 'teacher'
+  and (storage.foldername(name))[2] = auth.uid()::text
+  and (public.is_teacher() or public.is_admin())
+);
+
+create policy "media_assets_teacher_delete_own_folder"
+on storage.objects for delete
+to authenticated
+using (
+  bucket_id = 'media-assets'
+  and (storage.foldername(name))[1] = 'teacher'
+  and (storage.foldername(name))[2] = auth.uid()::text
   and (public.is_teacher() or public.is_admin())
 );

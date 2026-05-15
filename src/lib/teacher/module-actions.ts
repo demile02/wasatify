@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { z } from 'zod';
 import { createClient, isSupabaseConfigured } from '@/lib/supabase/server';
 import type {
   ModuleEditorLesson,
@@ -20,9 +21,12 @@ export type UploadedAssetInput = {
 export type SaveTeacherModuleInput = {
   moduleId?: string;
   title: string;
+  slug: string;
   description: string;
   classId?: string;
   estimatedMinutes: number;
+  orderIndex: number;
+  difficulty?: 'pemula' | 'menengah' | 'lanjut' | '';
   tags: string[];
   coverImagePath?: string;
   coverAsset?: UploadedAssetInput;
@@ -51,9 +55,33 @@ type QuizIdRow = {
   id: string;
 };
 
+const saveTeacherModuleSchema = z.object({
+  moduleId: z.string().optional(),
+  title: z.string().trim().min(5, 'Judul modul minimal 5 karakter.'),
+  slug: z.string().trim().optional(),
+  description: z.string().trim().min(20, 'Deskripsi minimal 20 karakter.'),
+  classId: z.string().optional(),
+  estimatedMinutes: z.number().min(1, 'Durasi belajar harus lebih dari 0 menit.'),
+  orderIndex: z.number().min(1, 'Order index minimal 1.'),
+  difficulty: z.enum(['pemula', 'menengah', 'lanjut', '']).optional(),
+  tags: z.array(z.string()),
+  coverImagePath: z.string().optional(),
+  coverAsset: z.unknown().optional(),
+  status: z.enum(['draft', 'published', 'archived']),
+  isPublic: z.boolean(),
+  lessons: z.array(z.unknown()),
+  quiz: z.unknown(),
+  intent: z.enum(['draft', 'publish']),
+});
+
 export async function saveTeacherModuleAction(
   input: SaveTeacherModuleInput,
 ): Promise<SaveTeacherModuleResult> {
+  const parsed = saveTeacherModuleSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Data modul tidak valid.' };
+  }
+
   const validationError = validateModuleInput(input);
   if (validationError) return { ok: false, error: validationError };
 
@@ -83,23 +111,24 @@ export async function saveTeacherModuleAction(
 
     const isPublishing = input.intent === 'publish';
     const now = new Date().toISOString();
-    const modulePayload = {
-      teacher_id: user.id,
-      created_by: user.id,
+    const modulePayload: Record<string, unknown> = {
       class_id: input.classId || null,
       title: input.title.trim(),
+      slug: normalizeSlug(input.slug || input.title),
       description: input.description.trim(),
       cover_image_path: input.coverImagePath?.trim() || null,
+      difficulty: input.difficulty || null,
       tags: normalizeTags(input.tags),
       status: isPublishing ? 'published' : input.status === 'archived' ? 'archived' : 'draft',
       is_public: input.isPublic,
       estimated_minutes: Math.max(Math.round(input.estimatedMinutes), 1),
+      order_index: Math.max(Math.round(input.orderIndex), 1),
       published_at: isPublishing ? now : null,
     };
 
     const moduleId = input.moduleId
       ? await updateModule(input.moduleId, modulePayload)
-      : await createModule(modulePayload);
+      : await createModule({ ...modulePayload, teacher_id: user.id, created_by: user.id });
 
     await saveCoverAsset(moduleId, user.id, input.coverAsset);
     await syncLessons(moduleId, input.lessons);
@@ -120,14 +149,6 @@ export async function saveTeacherModuleAction(
 }
 
 function validateModuleInput(input: SaveTeacherModuleInput) {
-  if (!input.title.trim()) return 'Judul modul wajib diisi.';
-  if (input.title.trim().length < 4) return 'Judul modul minimal 4 karakter.';
-  if (!input.description.trim()) return 'Deskripsi singkat wajib diisi.';
-  if (input.description.trim().length < 12) return 'Deskripsi minimal 12 karakter.';
-  if (!Number.isFinite(input.estimatedMinutes) || input.estimatedMinutes < 1) {
-    return 'Durasi belajar harus lebih dari 0 menit.';
-  }
-
   const filledLessons = input.lessons.filter((lesson) => lesson.title.trim() || lesson.content.trim());
 
   if (input.intent === 'publish' && !filledLessons.length) {
@@ -146,8 +167,11 @@ function validateModuleInput(input: SaveTeacherModuleInput) {
   }
 
   for (const question of filledQuestions) {
-    if (question.options.some((option) => !option.trim())) {
-      return 'Setiap pertanyaan kuis wajib memiliki empat opsi jawaban.';
+    const requiredOptions = question.questionType === 'true_false' ? question.options.slice(0, 2) : question.options;
+    if (requiredOptions.some((option) => !option.trim())) {
+      return question.questionType === 'true_false'
+        ? 'Pertanyaan benar/salah wajib memiliki opsi Benar dan Salah.'
+        : 'Setiap pertanyaan pilihan ganda wajib memiliki empat opsi jawaban.';
     }
     if (!question.explanation.trim()) {
       return 'Setiap pertanyaan kuis wajib memiliki penjelasan.';
@@ -162,7 +186,7 @@ function validateModuleInput(input: SaveTeacherModuleInput) {
 
 async function createModule(payload: Record<string, unknown>) {
   const supabase = await createClient();
-  const slug = `${slugify(String(payload.title))}-${Date.now().toString(36)}`;
+  const slug = `${normalizeSlug(String(payload.slug || payload.title))}-${Date.now().toString(36)}`;
   const { data, error } = await supabase
     .from('modules')
     .insert({ ...payload, slug })
@@ -215,6 +239,7 @@ async function syncLessons(moduleId: string, lessons: ModuleEditorLesson[]) {
       content: lesson.content.trim(),
       video_url: lesson.videoUrl.trim() || null,
       infographic_url: lesson.infographicUrl.trim() || null,
+      reflection_prompt: lesson.reflectionPrompt.trim() || null,
       order_index: Number.isFinite(lesson.orderIndex) ? Math.max(Math.round(lesson.orderIndex), 1) : index + 1,
       estimated_minutes: 5,
     }));
@@ -265,8 +290,11 @@ async function syncQuiz(
     passing_score: clampNumber(quiz.passingScore, 0, 100),
     max_attempts: Math.max(Math.round(quiz.maxAttempts), 1),
     time_limit_seconds: Math.max(Math.round(quiz.timeLimitSeconds), 60),
+    allow_retake: quiz.allowRetake,
+    show_explanation: quiz.showExplanation,
+    shuffle_questions: quiz.shuffleQuestions,
     is_published: publishQuiz || quiz.isPublished,
-    status: publishQuiz || quiz.isPublished ? 'published' : 'draft',
+    status: publishQuiz || quiz.isPublished ? 'published' : quiz.status,
   };
   const quizId = quiz.id ? await updateQuiz(quiz.id, quizPayload) : await createQuiz(quizPayload);
 
@@ -296,20 +324,20 @@ async function syncQuestions(quizId: string, questions: ModuleEditorQuestion[]) 
     .map((question, index) => ({
       id: question.id,
       quiz_id: quizId,
-      question_type: 'single_choice',
+      question_type: question.questionType,
       question_text: question.questionText.trim(),
-      options: ['a', 'b', 'c', 'd'].map((id, optionIndex) => ({
-        id,
-        text: question.options[optionIndex].trim(),
+      options: buildQuestionOptions(question).map((text, optionIndex) => ({
+        id: ['a', 'b', 'c', 'd'][optionIndex],
+        text,
       })),
       correct_answer: {
-        type: 'single_choice',
+        type: question.questionType,
         value: question.correctAnswer,
       },
       explanation: question.explanation.trim(),
       show_explanation: true,
       points: Math.max(Math.round(question.points), 1),
-      order_index: index + 1,
+      order_index: Number.isFinite(question.orderIndex) ? Math.max(Math.round(question.orderIndex), 1) : index + 1,
     }));
   const keepIds = normalizedQuestions.map((question) => question.id).filter(Boolean) as string[];
   const { data: existingQuestions } = await supabase.from('quiz_questions').select('id').eq('quiz_id', quizId);
@@ -335,11 +363,26 @@ async function syncQuestions(quizId: string, questions: ModuleEditorQuestion[]) 
   }
 }
 
+function buildQuestionOptions(question: ModuleEditorQuestion) {
+  if (question.questionType === 'true_false') {
+    return [
+      question.options[0].trim() || 'Benar',
+      question.options[1].trim() || 'Salah',
+    ];
+  }
+
+  return ['a', 'b', 'c', 'd'].map((_, optionIndex) => question.options[optionIndex].trim());
+}
+
 function normalizeTags(tags: string[]) {
   return tags
     .map((tag) => tag.trim())
     .filter(Boolean)
     .slice(0, 8);
+}
+
+function normalizeSlug(value: string) {
+  return slugify(value);
 }
 
 function slugify(value: string) {

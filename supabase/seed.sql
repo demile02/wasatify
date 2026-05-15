@@ -342,6 +342,7 @@ insert into public.lessons (
   slug,
   type,
   content,
+  reflection_prompt,
   infographic_url,
   order_index,
   estimated_minutes
@@ -352,6 +353,11 @@ select
   lesson_seed.slug,
   'article',
   lesson_seed.content,
+  case
+    when lesson_seed.slug = 'tawazun-keseimbangan'
+      then 'Apa bentuk keseimbangan yang ingin kamu latih dalam belajar, ibadah, keluarga, dan pergaulan minggu ini?'
+    else null
+  end,
   lesson_seed.infographic_url,
   lesson_seed.order_index,
   lesson_seed.estimated_minutes
@@ -361,6 +367,7 @@ on conflict (module_id, slug) do update
 set title = excluded.title,
     type = excluded.type,
     content = excluded.content,
+    reflection_prompt = excluded.reflection_prompt,
     infographic_url = excluded.infographic_url,
     order_index = excluded.order_index,
     estimated_minutes = excluded.estimated_minutes,
@@ -503,24 +510,45 @@ insert into public.announcements (
   class_id,
   title,
   content,
+  status,
   priority,
   published_at
 )
-values
-  (
-    '00000000-0000-0000-0000-000000000101',
-    '00000000-0000-0000-0000-000000000201',
-    'Kuis Akhir Pekan',
-    'Ikuti kuis akhir pekan dan dapatkan poin tambahan untuk memperkuat pemahamanmu.',
-    'normal',
-    now()
-  ),
-  (
-    '00000000-0000-0000-0000-000000000101',
-    null,
-    'Modul Baru Tersedia',
-    'Modul Islam dan Lingkungan sudah tersedia untuk dipelajari.',
-    'low',
-    now()
-  )
-on conflict do nothing;
+select
+  '00000000-0000-0000-0000-000000000101',
+  '00000000-0000-0000-0000-000000000201',
+  'Kuis Akhir Pekan',
+  'Ikuti kuis akhir pekan dan dapatkan poin tambahan untuk memperkuat pemahamanmu.',
+  'published',
+  'normal',
+  now()
+where not exists (
+  select 1
+  from public.announcements
+  where title = 'Kuis Akhir Pekan'
+    and class_id = '00000000-0000-0000-0000-000000000201'
+);
+
+insert into public.announcements (
+  teacher_id,
+  class_id,
+  title,
+  content,
+  status,
+  priority,
+  published_at
+)
+select
+  '00000000-0000-0000-0000-000000000101',
+  null,
+  'Modul Baru Tersedia',
+  'Modul Islam dan Lingkungan sudah tersedia untuk dipelajari.',
+  'published',
+  'low',
+  now()
+where not exists (
+  select 1
+  from public.announcements
+  where title = 'Modul Baru Tersedia'
+    and class_id is null
+);

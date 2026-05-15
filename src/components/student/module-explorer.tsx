@@ -1,14 +1,16 @@
 'use client';
 
+import { useMemo, useState } from 'react';
 import { BookOpen, Clock, Lock, Search } from 'lucide-react';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 import { EmptyState } from '@/components/shared/empty-state';
 import { ProgressBar } from '@/components/shared/progress-bar';
 import { StatusBadge } from '@/components/shared/status-badge';
+import { Input } from '@/components/ui/input';
 import type { StudentModule } from '@/lib/demo/student';
 import type { ModuleStatus } from '@/lib/types';
 import { cn } from '@/lib/utils';
-import { useMemo, useState } from 'react';
 
 type ModuleExplorerProps = {
   modules: StudentModule[];
@@ -76,11 +78,11 @@ export function ModuleExplorer({ modules }: ModuleExplorerProps) {
 
         <div className="flex min-h-12 w-full items-center gap-2 rounded-xl border border-border bg-white px-4 shadow-sm xl:max-w-sm">
           <Search className="h-4 w-4 text-muted-foreground" />
-          <input
+          <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Cari modul..."
-            className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground/70"
+            className="h-auto border-0 bg-transparent p-0 text-sm shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
           />
         </div>
       </div>
@@ -104,12 +106,28 @@ export function ModuleExplorer({ modules }: ModuleExplorerProps) {
 }
 
 function ModuleListItem({ moduleItem, index }: { moduleItem: StudentModule; index: number }) {
+  const router = useRouter();
   const locked = moduleItem.status === 'locked';
+  const ctaLabel = locked ? 'Terkunci' : moduleItem.status === 'in_progress' ? 'Lanjutkan' : 'Buka Modul';
+
+  function openModule() {
+    if (locked) {
+      toast.warning('Selesaikan modul sebelumnya terlebih dahulu.');
+      return;
+    }
+
+    router.push(`/student/modules/${moduleItem.id}`);
+  }
 
   return (
-    <Link
-      href={`/student/modules/${moduleItem.id}`}
-      className="block rounded-2xl border border-primary/10 bg-white p-4 shadow-card transition hover:-translate-y-0.5 hover:shadow-soft"
+    <button
+      type="button"
+      onClick={openModule}
+      aria-disabled={locked}
+      className={cn(
+        'block w-full rounded-2xl border border-primary/10 bg-white p-4 text-left shadow-card transition',
+        locked ? 'cursor-not-allowed opacity-80' : 'hover:-translate-y-0.5 hover:shadow-soft',
+      )}
     >
       <div className="grid gap-4 lg:grid-cols-[auto_1fr_auto] lg:items-center">
         <div className="flex items-center gap-4">
@@ -145,13 +163,21 @@ function ModuleListItem({ moduleItem, index }: { moduleItem: StudentModule; inde
           </div>
         </div>
 
-        <div className="grid gap-3 lg:w-56">
+        <div className="grid gap-3 lg:w-64">
           <div className="flex items-center justify-between gap-3 lg:justify-end">
             <StatusBadge status={moduleItem.status} />
           </div>
           <ProgressBar value={moduleItem.progress} showValue />
+          <span
+            className={cn(
+              'inline-flex h-10 items-center justify-center rounded-xl px-4 text-sm font-bold',
+              locked ? 'bg-muted text-muted-foreground' : 'bg-primary text-primary-foreground',
+            )}
+          >
+            {ctaLabel}
+          </span>
         </div>
       </div>
-    </Link>
+    </button>
   );
 }

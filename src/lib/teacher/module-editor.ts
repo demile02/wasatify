@@ -14,16 +14,19 @@ export type ModuleEditorLesson = {
   content: string;
   videoUrl: string;
   infographicUrl: string;
+  reflectionPrompt: string;
   orderIndex: number;
 };
 
 export type ModuleEditorQuestion = {
   id?: string;
+  questionType: 'multiple_choice' | 'true_false';
   questionText: string;
   options: [string, string, string, string];
   correctAnswer: 'a' | 'b' | 'c' | 'd';
   explanation: string;
   points: number;
+  orderIndex: number;
 };
 
 export type ModuleEditorQuiz = {
@@ -33,6 +36,10 @@ export type ModuleEditorQuiz = {
   passingScore: number;
   maxAttempts: number;
   timeLimitSeconds: number;
+  allowRetake: boolean;
+  showExplanation: boolean;
+  shuffleQuestions: boolean;
+  status: TeacherModuleStatus;
   isPublished: boolean;
   questions: ModuleEditorQuestion[];
 };
@@ -40,9 +47,12 @@ export type ModuleEditorQuiz = {
 export type ModuleEditorInitialData = {
   id?: string;
   title: string;
+  slug: string;
   description: string;
   classId: string;
   estimatedMinutes: number;
+  orderIndex: number;
+  difficulty: 'pemula' | 'menengah' | 'lanjut' | '';
   tags: string[];
   coverImagePath: string;
   status: TeacherModuleStatus;
@@ -64,10 +74,13 @@ type ClassRow = {
 
 type ModuleRow = {
   id: string;
+  slug: string;
   title: string;
   description: string;
   class_id: string | null;
   estimated_minutes: number | null;
+  order_index: number | null;
+  difficulty: 'pemula' | 'menengah' | 'lanjut' | null;
   tags: string[] | null;
   cover_image_path: string | null;
   status: TeacherModuleStatus;
@@ -80,6 +93,7 @@ type LessonRow = {
   content: string | null;
   video_url: string | null;
   infographic_url: string | null;
+  reflection_prompt: string | null;
   order_index: number | null;
 };
 
@@ -90,11 +104,16 @@ type QuizRow = {
   passing_score: number | null;
   max_attempts: number | null;
   time_limit_seconds: number | null;
+  allow_retake?: boolean | null;
+  show_explanation?: boolean | null;
+  shuffle_questions?: boolean | null;
+  status?: TeacherModuleStatus | null;
   is_published: boolean | null;
 };
 
 type QuestionRow = {
   id: string;
+  question_type: ModuleEditorQuestion['questionType'];
   question_text: string;
   options: unknown;
   correct_answer: unknown;
@@ -109,6 +128,10 @@ const emptyQuiz: ModuleEditorQuiz = {
   passingScore: 70,
   maxAttempts: 3,
   timeLimitSeconds: 600,
+  allowRetake: true,
+  showExplanation: true,
+  shuffleQuestions: false,
+  status: 'draft',
   isPublished: false,
   questions: [createEmptyQuestion()],
 };
@@ -119,26 +142,32 @@ export function createEmptyLesson(orderIndex = 1): ModuleEditorLesson {
     content: '',
     videoUrl: '',
     infographicUrl: '',
+    reflectionPrompt: '',
     orderIndex,
   };
 }
 
 export function createEmptyQuestion(): ModuleEditorQuestion {
   return {
+    questionType: 'multiple_choice',
     questionText: '',
     options: ['', '', '', ''],
     correctAnswer: 'a',
     explanation: '',
     points: 10,
+    orderIndex: 1,
   };
 }
 
 export function createEmptyModule(): ModuleEditorInitialData {
   return {
     title: '',
+    slug: '',
     description: '',
     classId: '',
     estimatedMinutes: 30,
+    orderIndex: 1,
+    difficulty: '',
     tags: [],
     coverImagePath: '',
     status: 'draft',
@@ -172,6 +201,7 @@ export async function getModuleEditorData(
                 content: 'Adab adalah sikap baik yang memuliakan Allah, sesama manusia, dan lingkungan.',
                 videoUrl: '',
                 infographicUrl: '',
+                reflectionPrompt: '',
                 orderIndex: 1,
               },
             ],
@@ -182,10 +212,12 @@ export async function getModuleEditorData(
               questions: [
                 {
                   questionText: 'Apa makna adab dalam Islam?',
+                  questionType: 'multiple_choice',
                   options: ['Sikap baik', 'Kecepatan belajar', 'Hafalan saja', 'Kegiatan bermain'],
                   correctAnswer: 'a',
                   explanation: 'Adab adalah sikap baik yang tercermin dalam perilaku sehari-hari.',
                   points: 10,
+                  orderIndex: 1,
                 },
               ],
             },
@@ -211,11 +243,16 @@ export async function getModuleEditorData(
     return { classes, module: null };
   }
 
-  const { data: moduleRow, error: moduleError } = await supabase
+  let moduleQuery = supabase
     .from('modules')
-    .select('id, title, description, class_id, estimated_minutes, tags, cover_image_path, status, is_public')
-    .eq('id', moduleId)
-    .maybeSingle<ModuleRow>();
+    .select('id, slug, title, description, class_id, estimated_minutes, order_index, difficulty, tags, cover_image_path, status, is_public, created_by')
+    .eq('id', moduleId);
+
+  if (profile.role === 'teacher') {
+    moduleQuery = moduleQuery.eq('created_by', profile.id);
+  }
+
+  const { data: moduleRow, error: moduleError } = await moduleQuery.maybeSingle<ModuleRow>();
 
   if (moduleError || !moduleRow) {
     return { classes, module: null };
@@ -224,12 +261,12 @@ export async function getModuleEditorData(
   const [lessonsResult, quizResult] = await Promise.all([
     supabase
       .from('lessons')
-      .select('id, title, content, video_url, infographic_url, order_index')
+      .select('id, title, content, video_url, infographic_url, reflection_prompt, order_index')
       .eq('module_id', moduleRow.id)
       .order('order_index', { ascending: true }),
     supabase
       .from('quizzes')
-      .select('id, title, description, passing_score, max_attempts, time_limit_seconds, is_published')
+      .select('id, title, description, passing_score, max_attempts, time_limit_seconds, allow_retake, show_explanation, shuffle_questions, status, is_published')
       .eq('module_id', moduleRow.id)
       .order('created_at', { ascending: true })
       .limit(1),
@@ -243,9 +280,12 @@ export async function getModuleEditorData(
     module: {
       id: moduleRow.id,
       title: moduleRow.title,
+      slug: moduleRow.slug,
       description: moduleRow.description,
       classId: moduleRow.class_id ?? '',
       estimatedMinutes: moduleRow.estimated_minutes ?? 30,
+      orderIndex: moduleRow.order_index ?? 1,
+      difficulty: moduleRow.difficulty ?? '',
       tags: moduleRow.tags ?? [],
       coverImagePath: moduleRow.cover_image_path ?? '',
       status: moduleRow.status,
@@ -256,6 +296,7 @@ export async function getModuleEditorData(
         content: lesson.content ?? '',
         videoUrl: lesson.video_url ?? '',
         infographicUrl: lesson.infographic_url ?? '',
+        reflectionPrompt: lesson.reflection_prompt ?? '',
         orderIndex: lesson.order_index ?? index + 1,
       })),
       quiz: quizRow
@@ -266,6 +307,10 @@ export async function getModuleEditorData(
             passingScore: quizRow.passing_score ?? 70,
             maxAttempts: quizRow.max_attempts ?? 3,
             timeLimitSeconds: quizRow.time_limit_seconds ?? 600,
+            allowRetake: quizRow.allow_retake ?? true,
+            showExplanation: quizRow.show_explanation ?? true,
+            shuffleQuestions: quizRow.shuffle_questions ?? false,
+            status: quizRow.status ?? 'draft',
             isPublished: quizRow.is_published ?? false,
             questions,
           }
@@ -276,7 +321,7 @@ export async function getModuleEditorData(
   async function getQuestions(quizId: string) {
     const { data } = await supabase
       .from('quiz_questions')
-      .select('id, question_text, options, correct_answer, explanation, points, order_index')
+      .select('id, question_type, question_text, options, correct_answer, explanation, points, order_index')
       .eq('quiz_id', quizId)
       .order('order_index', { ascending: true });
 
@@ -289,11 +334,13 @@ function mapQuestionRow(row: QuestionRow): ModuleEditorQuestion {
 
   return {
     id: row.id,
+    questionType: row.question_type ?? 'multiple_choice',
     questionText: row.question_text,
     options,
     correctAnswer: normalizeCorrectAnswer(row.correct_answer),
     explanation: row.explanation ?? '',
     points: row.points ?? 10,
+    orderIndex: row.order_index ?? 1,
   };
 }
 

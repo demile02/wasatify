@@ -1,13 +1,27 @@
 import { Megaphone } from 'lucide-react';
-import { TeacherPlaceholder } from '@/components/teacher/teacher-placeholder';
+import { PageHeader } from '@/components/shared/page-header';
+import { AnnouncementsTable } from '@/components/teacher/announcements-table';
+import { requireTeacher } from '@/lib/auth/server';
+import { demoTeacherProfile } from '@/lib/demo/teacher';
+import { getTeacherAnnouncementsData } from '@/lib/teacher/announcements';
 
-export default function TeacherAnnouncementsPage() {
+export default async function TeacherAnnouncementsPage() {
+  const profile = (await requireTeacher()) ?? demoTeacherProfile;
+  const data = await getTeacherAnnouncementsData(profile);
+
   return (
-    <TeacherPlaceholder
-      eyebrow="Pengumuman"
-      title="Manajemen Pengumuman"
-      description="Kirim informasi penting, jadwal, atau arahan belajar ke kelas yang kamu ajar."
-      icon={Megaphone}
-    />
+    <div>
+      <PageHeader
+        eyebrow="Komunikasi"
+        title="Pengumuman"
+        description="Buat dan kelola informasi penting untuk siswa."
+        actions={
+          <div className="hidden h-12 w-12 place-items-center rounded-2xl bg-mint text-primary sm:grid">
+            <Megaphone className="h-5 w-5" />
+          </div>
+        }
+      />
+      <AnnouncementsTable data={data} />
+    </div>
   );
 }

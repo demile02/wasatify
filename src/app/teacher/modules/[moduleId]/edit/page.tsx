@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { FileQuestion } from 'lucide-react';
+import { ArrowLeft, FileQuestion } from 'lucide-react';
 import { EmptyState } from '@/components/shared/empty-state';
 import { PageHeader } from '@/components/shared/page-header';
 import { ModuleEditorForm } from '@/components/teacher/module-editor-form';
@@ -36,8 +36,16 @@ export default async function TeacherEditModulePage({ params }: TeacherEditModul
     <div>
       <PageHeader
         eyebrow="Edit Modul"
-        title={editorData.module.title || 'Edit Modul'}
-        description="Perbarui informasi, konten, kuis, dan status publikasi modul."
+        title="Edit Modul"
+        description={`Perbarui informasi, konten, kuis, dan status publikasi untuk ${editorData.module.title}.`}
+        actions={
+          <Button asChild variant="outline">
+            <Link href="/teacher/modules">
+              <ArrowLeft className="h-4 w-4" />
+              Kembali
+            </Link>
+          </Button>
+        }
       />
 
       <ModuleEditorForm mode="edit" initialData={editorData.module} classes={editorData.classes} />

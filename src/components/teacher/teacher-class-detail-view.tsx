@@ -9,7 +9,6 @@ import {
   Download,
   MessageSquareText,
   Search,
-  Settings,
   Users,
 } from 'lucide-react';
 import { EmptyState } from '@/components/shared/empty-state';
@@ -24,18 +23,18 @@ type TeacherClassDetailViewProps = {
   data: TeacherClassDetailData;
 };
 
-type TabId = 'summary' | 'students' | 'modules' | 'activities' | 'settings';
+type TabId = 'overview' | 'students' | 'modules' | 'quizzes' | 'reflections';
 
 const tabs: { id: TabId; label: string }[] = [
-  { id: 'summary', label: 'Ringkasan' },
-  { id: 'students', label: 'Siswa' },
-  { id: 'modules', label: 'Modul' },
-  { id: 'activities', label: 'Aktivitas' },
-  { id: 'settings', label: 'Pengaturan' },
+  { id: 'overview', label: 'Overview' },
+  { id: 'students', label: 'Daftar Siswa' },
+  { id: 'modules', label: 'Progress Modul' },
+  { id: 'quizzes', label: 'Nilai & Evaluasi' },
+  { id: 'reflections', label: 'Refleksi' },
 ];
 
 export function TeacherClassDetailView({ data }: TeacherClassDetailViewProps) {
-  const [activeTab, setActiveTab] = useState<TabId>('summary');
+  const [activeTab, setActiveTab] = useState<TabId>('overview');
   const [query, setQuery] = useState('');
 
   const filteredStudents = useMemo(() => {
@@ -52,7 +51,14 @@ export function TeacherClassDetailView({ data }: TeacherClassDetailViewProps) {
 
   return (
     <div className="mt-8">
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <StatCard
+          label="Total Siswa"
+          value={data.students.length}
+          description="Peserta kelas"
+          icon={Users}
+          tone="mint"
+        />
         <StatCard
           label="Tingkat Penyelesaian"
           value={`${data.metrics.completionRate}%`}
@@ -107,19 +113,23 @@ export function TeacherClassDetailView({ data }: TeacherClassDetailViewProps) {
       </div>
 
       <div className="mt-6">
-        {activeTab === 'summary' && (
+        {activeTab === 'overview' && (
           <div className="grid gap-6 xl:grid-cols-[1fr_0.78fr]">
             <SectionCard>
-              <p className="font-bold text-ink">Student Progress Table</p>
+              <p className="font-bold text-ink">Progress Kelas Overall</p>
+              <ProgressBar value={data.metrics.completionRate} label="Rata-rata progress kelas" showValue className="mt-4" />
+              <div className="mt-6">
+                <p className="font-bold text-ink">Top Students by Progress</p>
+              </div>
               <StudentSearch value={query} onChange={setQuery} />
-              <StudentProgressTable students={filteredStudents} />
+              <StudentProgressTable students={[...filteredStudents].sort((first, second) => second.progress - first.progress).slice(0, 5)} />
             </SectionCard>
 
             <SectionCard>
-              <p className="font-bold text-ink">Modul Kelas</p>
+              <p className="font-bold text-ink">Modules Needing Attention</p>
               {data.modules.length ? (
                 <div className="mt-5 space-y-4">
-                  {data.modules.map((moduleItem) => (
+                  {[...data.modules].sort((first, second) => first.completionRate - second.completionRate).slice(0, 5).map((moduleItem) => (
                     <div key={moduleItem.id} className="rounded-2xl border border-border bg-white p-4">
                       <div className="mb-3 flex items-start justify-between gap-3">
                         <div>
@@ -156,21 +166,31 @@ export function TeacherClassDetailView({ data }: TeacherClassDetailViewProps) {
 
         {activeTab === 'modules' && (
           <SectionCard>
-            <p className="font-bold text-ink">Modul</p>
+            <p className="font-bold text-ink">Progress Modul</p>
             {data.modules.length ? (
-              <div className="mt-5 grid gap-4 lg:grid-cols-2">
-                {data.modules.map((moduleItem) => (
-                  <div key={moduleItem.id} className="rounded-2xl border border-border bg-white p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="font-bold text-ink">{moduleItem.title}</p>
-                        <p className="mt-1 text-sm text-muted-foreground">{moduleItem.lessonsCount} lesson</p>
-                      </div>
-                      <ModuleStatusBadge status={moduleItem.status} />
-                    </div>
-                    <ProgressBar value={moduleItem.completionRate} label="Penyelesaian" showValue className="mt-4" />
-                  </div>
-                ))}
+              <div className="mt-5 overflow-x-auto rounded-2xl border border-border bg-white">
+                <table className="w-full min-w-[760px] text-left text-sm">
+                  <thead className="border-b border-border bg-slate-50 text-xs uppercase tracking-wide text-muted-foreground">
+                    <tr>
+                      <th className="px-4 py-3 font-bold">Siswa</th>
+                      {data.modules.map((moduleItem) => (
+                        <th key={moduleItem.id} className="px-4 py-3 font-bold">{moduleItem.title}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {filteredStudents.map((student) => (
+                      <tr key={student.id}>
+                        <td className="px-4 py-3 font-bold text-ink">{student.name}</td>
+                        {data.modules.map((moduleItem) => (
+                          <td key={moduleItem.id} className="px-4 py-3 text-muted-foreground">
+                            {student.progress}%
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             ) : (
               <EmptyState
@@ -183,20 +203,17 @@ export function TeacherClassDetailView({ data }: TeacherClassDetailViewProps) {
           </SectionCard>
         )}
 
-        {activeTab === 'activities' && (
+        {activeTab === 'quizzes' && (
           <SectionCard>
-            <p className="font-bold text-ink">Aktivitas</p>
-            <ActivityList activities={data.activities} />
+            <p className="font-bold text-ink">Nilai & Evaluasi</p>
+            <ActivityList activities={data.activities.filter((activity) => activity.type === 'quiz')} emptyTitle="Belum ada nilai kuis" />
           </SectionCard>
         )}
 
-        {activeTab === 'settings' && (
+        {activeTab === 'reflections' && (
           <SectionCard>
-            <EmptyState
-              icon={Settings}
-              title="Pengaturan kelas belum tersedia"
-              description="Pengaturan detail kelas akan ditambahkan pada tahap berikutnya."
-            />
+            <p className="font-bold text-ink">Refleksi</p>
+            <ActivityList activities={data.activities.filter((activity) => activity.type === 'reflection')} emptyTitle="Belum ada refleksi" />
           </SectionCard>
         )}
       </div>
@@ -275,13 +292,13 @@ function StudentProgressTable({ students }: { students: TeacherStudentProgress[]
   );
 }
 
-function ActivityList({ activities }: { activities: TeacherClassActivity[] }) {
+function ActivityList({ activities, emptyTitle = 'Belum ada aktivitas' }: { activities: TeacherClassActivity[]; emptyTitle?: string }) {
   if (!activities.length) {
     return (
       <EmptyState
         className="mt-5"
         icon={Activity}
-        title="Belum ada aktivitas"
+        title={emptyTitle}
         description="Aktivitas kuis, refleksi, dan penyelesaian modul akan tampil di sini."
       />
     );

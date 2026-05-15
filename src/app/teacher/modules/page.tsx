@@ -3,17 +3,19 @@ import Link from 'next/link';
 import { PageHeader } from '@/components/shared/page-header';
 import { Button } from '@/components/ui/button';
 import { TeacherModulesTable } from '@/components/teacher/teacher-modules-table';
+import { requireTeacher } from '@/lib/auth/server';
 import { getTeacherModules } from '@/lib/teacher/data';
 
 export default async function TeacherModulesPage() {
-  const modules = await getTeacherModules();
+  const profile = await requireTeacher();
+  const modules = await getTeacherModules(profile ?? undefined);
 
   return (
     <div>
       <PageHeader
         eyebrow="Modul Pembelajaran"
-        title="Manajemen Modul"
-        description="Kelola daftar modul, materi, kategori, status publikasi, dan akses edit modul."
+        title="Modul Pembelajaran"
+        description="Kelola semua modul pembelajaran yang Anda buat."
         actions={
           <Button asChild>
             <Link href="/teacher/modules/new">
