@@ -95,7 +95,9 @@ Checklist ini memastikan database, RLS, seed, dan storage siap untuk local/dev/p
 - [ ] Redirect URL lokal mencakup `http://localhost:3000`.
 - [ ] Redirect URL production Vercel ditambahkan setelah deploy.
 - [ ] Register student membuat row `profiles.role = student`.
+- [ ] Register student yang memilih kelas menyimpan `profiles.class_id`.
 - [ ] Register teacher membuat row `profiles.role = teacher`.
+- [ ] Register teacher membuat class default lewat trigger atau guru membuat kelas manual dari `/teacher/classes`.
 - [ ] Admin dibuat manual dengan mengubah `profiles.role = admin` jika diperlukan.
 
 ## Flow Smoke Tests

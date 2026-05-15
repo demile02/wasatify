@@ -89,6 +89,19 @@ http://localhost:3000
 ```
 
 3. Tambahkan URL production Vercel ke Redirect URLs setelah deploy.
+4. Tambahkan callback auth:
+
+```txt
+https://your-domain.vercel.app/auth/callback
+http://localhost:3000/auth/callback
+```
+
+Untuk testing praktis, wildcard juga boleh:
+
+```txt
+https://your-domain.vercel.app/**
+http://localhost:3000/**
+```
 
 Register siswa membuat profile role `student`. Register guru membuat profile role `teacher`. Middleware membatasi `/student/*` untuk student dan `/teacher/*` untuk teacher/admin.
 

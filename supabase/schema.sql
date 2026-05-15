@@ -437,6 +437,7 @@ as $$
 declare
   requested_role text;
   safe_role public.app_role;
+  selected_class_id uuid;
 begin
   requested_role := new.raw_user_meta_data->>'role';
   safe_role := case
@@ -444,7 +445,11 @@ begin
     else 'student'::public.app_role
   end;
 
-  insert into public.profiles (id, role, full_name, email, avatar_url, school_name, class_name, subject)
+  if (new.raw_user_meta_data->>'class_id') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
+    selected_class_id := (new.raw_user_meta_data->>'class_id')::uuid;
+  end if;
+
+  insert into public.profiles (id, role, full_name, email, avatar_url, school_name, class_id, class_name, subject)
   values (
     new.id,
     safe_role,
@@ -457,6 +462,7 @@ begin
     new.email,
     new.raw_user_meta_data->>'avatar_url',
     new.raw_user_meta_data->>'school_name',
+    selected_class_id,
     nullif(new.raw_user_meta_data->>'class_name', ''),
     nullif(new.raw_user_meta_data->>'subject', '')
   )
@@ -465,9 +471,22 @@ begin
         email = excluded.email,
         avatar_url = coalesce(excluded.avatar_url, public.profiles.avatar_url),
         school_name = coalesce(excluded.school_name, public.profiles.school_name),
+        class_id = coalesce(excluded.class_id, public.profiles.class_id),
         class_name = coalesce(excluded.class_name, public.profiles.class_name),
         subject = coalesce(excluded.subject, public.profiles.subject),
         updated_at = now();
+
+  if safe_role = 'teacher' then
+    insert into public.classes (teacher_id, name, description, grade_level, academic_year)
+    values (
+      new.id,
+      'Kelas Default',
+      'Kelas awal yang dibuat otomatis saat akun guru dikonfirmasi.',
+      null,
+      extract(year from now())::text
+    )
+    on conflict do nothing;
+  end if;
 
   return new;
 end;

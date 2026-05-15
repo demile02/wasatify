@@ -120,6 +120,48 @@ export async function getTeacherClasses(profile: Profile): Promise<TeacherClassL
   }
 }
 
+export async function getTeacherClassIds(teacherId: string) {
+  if (!isSupabaseConfigured) return [];
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.from('classes').select('id').eq('teacher_id', teacherId);
+
+  if (error) return [];
+  return (data ?? []).map((classItem) => classItem.id as string);
+}
+
+export async function getTeacherStudents(teacherId: string) {
+  if (!isSupabaseConfigured) return [];
+
+  const supabase = await createClient();
+  const classIds = await getTeacherClassIds(teacherId);
+  if (!classIds.length) return [];
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, full_name, email, class_id, last_active_at')
+    .eq('role', 'student')
+    .in('class_id', classIds);
+
+  return error ? [] : data ?? [];
+}
+
+export async function getTeacherStudentProgress(teacherId: string) {
+  if (!isSupabaseConfigured) return [];
+
+  const supabase = await createClient();
+  const students = await getTeacherStudents(teacherId);
+  const studentIds = students.map((student) => student.id as string);
+  if (!studentIds.length) return [];
+
+  const { data, error } = await supabase
+    .from('module_progress')
+    .select('student_id, module_id, status, progress_percent, completed_at, updated_at')
+    .in('student_id', studentIds);
+
+  return error ? [] : data ?? [];
+}
+
 function groupBy<T>(items: T[], keyFn: (item: T) => string) {
   const groups = new Map<string, T[]>();
 

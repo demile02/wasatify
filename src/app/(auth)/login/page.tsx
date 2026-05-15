@@ -4,6 +4,7 @@ import { LoginForm } from '@/components/auth/login-form';
 type LoginPageProps = {
   searchParams: Promise<{
     next?: string;
+    confirmed?: string;
   }>;
 };
 
@@ -15,7 +16,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
       title="Selamat Datang di WASATIFY"
       description="Masuk untuk melanjutkan pembelajaran Islam Wasathiyah, mengerjakan kuis, menulis refleksi, atau memantau kelas."
     >
-      <LoginForm nextPath={params.next} />
+      <LoginForm nextPath={params.next} confirmed={params.confirmed === '1'} />
     </AuthShell>
   );
 }

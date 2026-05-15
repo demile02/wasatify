@@ -1,7 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
   ArrowRight,
@@ -51,6 +51,13 @@ type FormState = Omit<ModuleEditorInitialData, 'lessons' | 'quiz'> & {
   };
 };
 
+type LocalModuleDraft = {
+  form: FormState;
+  tagsText: string;
+  coverPreview: string;
+  savedAt: string;
+};
+
 type StepId = 'info' | 'content' | 'quiz' | 'summary';
 
 const steps: { id: StepId; label: string }[] = [
@@ -72,6 +79,8 @@ export function ModuleEditorForm({ mode, initialData, classes }: ModuleEditorFor
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [savingIntent, setSavingIntent] = useState<'draft' | 'publish' | null>(null);
+  const draftStorageKey = `wasatify:module-editor:${mode}:${initialData.id ?? 'new'}`;
+  const restoredDraftRef = useRef(false);
 
   const activeStepIndex = steps.findIndex((step) => step.id === activeStep);
   const filledLessons = form.lessons.filter((lesson) => lesson.title.trim());
@@ -82,6 +91,48 @@ export function ModuleEditorForm({ mode, initialData, classes }: ModuleEditorFor
     () => classes.find((classItem) => classItem.id === form.classId),
     [classes, form.classId],
   );
+
+  useEffect(() => {
+    if (restoredDraftRef.current) return;
+    restoredDraftRef.current = true;
+
+    try {
+      const rawDraft = window.localStorage.getItem(draftStorageKey);
+      if (!rawDraft) return;
+
+      const parsedDraft = JSON.parse(rawDraft) as LocalModuleDraft;
+      if (!parsedDraft?.form) return;
+
+      setForm(toRestoredFormState(parsedDraft.form));
+      setTagsText(parsedDraft.tagsText ?? '');
+      setCoverPreview(parsedDraft.coverPreview ?? parsedDraft.form.coverImagePath ?? '');
+      setSuccess(
+        `Draft lokal dipulihkan${
+          parsedDraft.savedAt ? ` dari ${formatDraftDate(parsedDraft.savedAt)}` : ''
+        }. File upload perlu dipilih ulang jika belum tersimpan.`,
+      );
+    } catch {
+      window.localStorage.removeItem(draftStorageKey);
+    }
+  }, [draftStorageKey]);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      try {
+        const draft: LocalModuleDraft = {
+          form: stripFormFiles(form),
+          tagsText,
+          coverPreview,
+          savedAt: new Date().toISOString(),
+        };
+        window.localStorage.setItem(draftStorageKey, JSON.stringify(draft));
+      } catch {
+        // Local autosave is best-effort only. Server save remains the source of truth.
+      }
+    }, 500);
+
+    return () => window.clearTimeout(timeout);
+  }, [coverPreview, draftStorageKey, form, tagsText]);
 
   function updateForm(patch: Partial<FormState>) {
     setForm((current) => ({ ...current, ...patch }));
@@ -191,6 +242,7 @@ export function ModuleEditorForm({ mode, initialData, classes }: ModuleEditorFor
 
       setSuccess(intent === 'publish' ? 'Modul berhasil dipublikasikan.' : 'Draft modul berhasil disimpan.');
       toast.success(intent === 'publish' ? 'Modul berhasil dipublikasikan.' : 'Draft modul berhasil disimpan.');
+      window.localStorage.removeItem(draftStorageKey);
       if (result.moduleId && mode === 'create') {
         router.replace(`/teacher/modules/${result.moduleId}/edit`);
       } else {
@@ -988,6 +1040,38 @@ function toFormState(initialData: ModuleEditorInitialData): FormState {
   };
 }
 
+function toRestoredFormState(draftForm: FormState): FormState {
+  return {
+    ...draftForm,
+    lessons: draftForm.lessons.length
+      ? draftForm.lessons.map((lesson, index) => ({
+          ...lesson,
+          clientId: lesson.clientId ?? lesson.id ?? `restored-lesson-${index + 1}`,
+          infographicFile: undefined,
+        }))
+      : [createLessonState(1, 'restored-lesson-1')],
+    quiz: {
+      ...draftForm.quiz,
+      questions: draftForm.quiz.questions.length
+        ? draftForm.quiz.questions.map((question, index) => ({
+            ...question,
+            clientId: question.clientId ?? question.id ?? `restored-question-${index + 1}`,
+          }))
+        : [createQuestionState('restored-question-1')],
+    },
+  };
+}
+
+function stripFormFiles(form: FormState): FormState {
+  return {
+    ...form,
+    lessons: form.lessons.map((lesson) => ({
+      ...lesson,
+      infographicFile: undefined,
+    })),
+  };
+}
+
 function createLessonState(orderIndex: number, clientId = createClientId('lesson')): LessonState {
   return {
     clientId,
@@ -1066,6 +1150,15 @@ function validateForm(intent: 'draft' | 'publish', form: FormState) {
   }
 
   return null;
+}
+
+function formatDraftDate(value: string) {
+  return new Intl.DateTimeFormat('id-ID', {
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(value));
 }
 
 function slugify(value: string) {

@@ -18,13 +18,16 @@ import {
   Youtube,
 } from 'lucide-react';
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { PublicHeader } from '@/components/layout/public-header';
 import { AppLogo } from '@/components/shared/app-logo';
 import { FeatureCard } from '@/components/shared/feature-card';
 import { ProgressBar } from '@/components/shared/progress-bar';
 import { SectionCard } from '@/components/shared/section-card';
 import { Button } from '@/components/ui/button';
+import { getRoleDashboardPath } from '@/lib/auth/roles';
 import { landingFeatures, landingStats, publicNavigation } from '@/lib/constants/navigation';
+import { getCurrentProfile } from '@/lib/auth/server';
 
 const featureIconMap = {
   BookOpen,
@@ -66,7 +69,13 @@ const testimonials = [
   },
 ];
 
-export default function HomePage() {
+export default async function HomePage() {
+  const profile = await getCurrentProfile();
+
+  if (profile) {
+    redirect(getRoleDashboardPath(profile.role));
+  }
+
   return (
     <main className="min-h-screen overflow-hidden bg-background text-foreground">
       <PublicHeader />

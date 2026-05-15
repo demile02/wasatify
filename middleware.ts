@@ -69,7 +69,9 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL(getRoleDashboardPath(role), request.url));
   }
 
-  if (authRoutes.some((route) => pathname === route || pathname.startsWith(`${route}/`)) && role) {
+  const isConfirmedLogin = pathname === '/login' && request.nextUrl.searchParams.get('confirmed') === '1';
+
+  if (authRoutes.some((route) => pathname === route || pathname.startsWith(`${route}/`)) && role && !isConfirmedLogin) {
     return NextResponse.redirect(new URL(getRoleDashboardPath(role), request.url));
   }
 

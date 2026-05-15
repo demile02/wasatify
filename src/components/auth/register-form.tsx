@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Eye, EyeOff, Lock, Mail, UserRound } from 'lucide-react';
 import Link from 'next/link';
@@ -24,6 +24,7 @@ const registerSchema = z
   .object({
     fullName: z.string().trim().min(3, 'Nama lengkap minimal 3 karakter.'),
     email: z.string().trim().email('Email tidak valid.'),
+    classId: z.string().trim().optional(),
     className: z.string().trim().optional(),
     subject: z.string().trim().optional(),
     password: z.string().min(6, 'Password minimal 6 karakter.'),
@@ -36,10 +37,19 @@ const registerSchema = z
 
 type RegisterFormValues = z.infer<typeof registerSchema>;
 
+type PublicClassOption = {
+  id: string;
+  name: string;
+  grade_level: string | null;
+  academic_year: string | null;
+};
+
 export function RegisterForm({ role }: RegisterFormProps) {
   const router = useRouter();
   const isTeacher = role === 'teacher';
   const [showPassword, setShowPassword] = useState(false);
+  const [classes, setClasses] = useState<PublicClassOption[]>([]);
+  const [loadingClasses, setLoadingClasses] = useState(!isTeacher);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const {
@@ -51,12 +61,42 @@ export function RegisterForm({ role }: RegisterFormProps) {
     defaultValues: {
       fullName: '',
       email: '',
+      classId: '',
       className: '',
       subject: '',
       password: '',
       confirmPassword: '',
     },
   });
+
+  useEffect(() => {
+    if (isTeacher) return;
+
+    let mounted = true;
+
+    async function loadClasses() {
+      try {
+        const supabase = createClient();
+        const { data, error: classError } = await supabase
+          .from('classes')
+          .select('id, name, grade_level, academic_year')
+          .order('name', { ascending: true });
+
+        if (classError) throw classError;
+        if (mounted) setClasses((data ?? []) as PublicClassOption[]);
+      } catch {
+        if (mounted) setClasses([]);
+      } finally {
+        if (mounted) setLoadingClasses(false);
+      }
+    }
+
+    loadClasses();
+
+    return () => {
+      mounted = false;
+    };
+  }, [isTeacher]);
 
   async function onSubmit(values: RegisterFormValues) {
     setError('');
@@ -66,13 +106,16 @@ export function RegisterForm({ role }: RegisterFormProps) {
       const supabase = createClient();
       const fullName = values.fullName.trim();
       const email = values.email.trim();
+      const classId = values.classId?.trim() || null;
+      const selectedClass = classes.find((classItem) => classItem.id === classId);
       const className = values.className?.trim() || null;
       const subject = values.subject?.trim() || null;
       const metadata = {
         role,
         full_name: fullName,
         name: fullName,
-        class_name: isTeacher ? null : className,
+        class_id: isTeacher ? null : classId,
+        class_name: isTeacher ? null : selectedClass?.name ?? className,
         subject: isTeacher ? subject : null,
       };
 
@@ -81,6 +124,7 @@ export function RegisterForm({ role }: RegisterFormProps) {
         password: values.password,
         options: {
           data: metadata,
+          emailRedirectTo: `${window.location.origin}/auth/callback?next=/login?confirmed=1`,
         },
       });
 
@@ -93,7 +137,8 @@ export function RegisterForm({ role }: RegisterFormProps) {
             role,
             full_name: fullName,
             email,
-            class_name: isTeacher ? null : className,
+            class_id: isTeacher ? null : classId,
+            class_name: isTeacher ? null : selectedClass?.name ?? className,
             subject: isTeacher ? subject : null,
           },
           { onConflict: 'id' },
@@ -158,13 +203,33 @@ export function RegisterForm({ role }: RegisterFormProps) {
             {...register('subject')}
           />
         ) : (
-          <AuthInput
-            label="Kelas"
-            placeholder="Contoh: VIII A"
-            hint="Opsional. Bisa dilengkapi nanti jika kelas belum tersedia."
-            error={errors.className?.message}
-            {...register('className')}
-          />
+          <div className="space-y-2">
+            <label className="block text-sm font-bold text-ink">Kelas</label>
+            <select
+              className="h-12 w-full rounded-xl border border-border bg-white px-4 text-sm font-semibold text-foreground outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
+              disabled={loadingClasses || !classes.length}
+              {...register('classId')}
+            >
+              <option value="">
+                {loadingClasses
+                  ? 'Memuat kelas...'
+                  : classes.length
+                    ? 'Pilih kelas'
+                    : 'Belum ada kelas tersedia'}
+              </option>
+              {classes.map((classItem) => (
+                <option key={classItem.id} value={classItem.id}>
+                  {[classItem.name, classItem.grade_level, classItem.academic_year].filter(Boolean).join(' - ')}
+                </option>
+              ))}
+            </select>
+            {!classes.length && !loadingClasses && (
+              <p className="text-xs leading-5 text-muted-foreground">
+                Belum ada kelas tersedia. Hubungi guru, atau lanjut daftar dan minta guru menghubungkan akunmu nanti.
+              </p>
+            )}
+            {errors.classId?.message && <p className="text-xs font-semibold text-red-600">{errors.classId.message}</p>}
+          </div>
         )}
 
         <div className="relative">

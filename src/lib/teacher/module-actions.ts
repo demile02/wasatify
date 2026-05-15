@@ -111,10 +111,12 @@ export async function saveTeacherModuleAction(
 
     const isPublishing = input.intent === 'publish';
     const now = new Date().toISOString();
+    const slug = await resolveUniqueModuleSlug(input.slug || input.title, input.moduleId);
+    const orderIndex = await resolveModuleOrderIndex(user.id, input.orderIndex, input.moduleId);
     const modulePayload: Record<string, unknown> = {
       class_id: input.classId || null,
       title: input.title.trim(),
-      slug: normalizeSlug(input.slug || input.title),
+      slug,
       description: input.description.trim(),
       cover_image_path: input.coverImagePath?.trim() || null,
       difficulty: input.difficulty || null,
@@ -122,7 +124,7 @@ export async function saveTeacherModuleAction(
       status: isPublishing ? 'published' : input.status === 'archived' ? 'archived' : 'draft',
       is_public: input.isPublic,
       estimated_minutes: Math.max(Math.round(input.estimatedMinutes), 1),
-      order_index: Math.max(Math.round(input.orderIndex), 1),
+      order_index: orderIndex,
       published_at: isPublishing ? now : null,
     };
 
@@ -143,7 +145,7 @@ export async function saveTeacherModuleAction(
   } catch (error) {
     return {
       ok: false,
-      error: error instanceof Error ? error.message : 'Gagal menyimpan modul.',
+      error: formatSupabaseError(error, 'Gagal menyimpan modul.'),
     };
   }
 }
@@ -186,10 +188,9 @@ function validateModuleInput(input: SaveTeacherModuleInput) {
 
 async function createModule(payload: Record<string, unknown>) {
   const supabase = await createClient();
-  const slug = `${normalizeSlug(String(payload.slug || payload.title))}-${Date.now().toString(36)}`;
   const { data, error } = await supabase
     .from('modules')
-    .insert({ ...payload, slug })
+    .insert(payload)
     .select('id')
     .single<{ id: string }>();
 
@@ -383,6 +384,68 @@ function normalizeTags(tags: string[]) {
 
 function normalizeSlug(value: string) {
   return slugify(value);
+}
+
+async function resolveUniqueModuleSlug(value: string, moduleId?: string) {
+  const supabase = await createClient();
+  const baseSlug = normalizeSlug(value);
+  let candidate = baseSlug;
+  let suffix = 2;
+
+  while (true) {
+    let query = supabase.from('modules').select('id').eq('slug', candidate).limit(1);
+    if (moduleId) query = query.neq('id', moduleId);
+
+    const { data, error } = await query;
+    if (error) throw error;
+    if (!data?.length) return candidate;
+
+    candidate = `${baseSlug}-${suffix}`;
+    suffix += 1;
+  }
+}
+
+async function resolveModuleOrderIndex(teacherId: string, value: number, moduleId?: string) {
+  if (Number.isFinite(value) && value >= 1) {
+    return Math.max(Math.round(value), 1);
+  }
+
+  const supabase = await createClient();
+  let query = supabase
+    .from('modules')
+    .select('order_index')
+    .or(`created_by.eq.${teacherId},teacher_id.eq.${teacherId}`)
+    .order('order_index', { ascending: false })
+    .limit(1);
+
+  if (moduleId) query = query.neq('id', moduleId);
+
+  const { data, error } = await query;
+  if (error) throw error;
+
+  const maxOrderIndex = Number(data?.[0]?.order_index ?? 0);
+  return maxOrderIndex + 1;
+}
+
+function formatSupabaseError(error: unknown, fallback: string) {
+  if (!error || typeof error !== 'object') {
+    return error instanceof Error ? error.message : fallback;
+  }
+
+  const maybeError = error as {
+    message?: string;
+    code?: string;
+    details?: string;
+    hint?: string;
+  };
+  const parts = [
+    maybeError.message,
+    maybeError.code ? `Kode: ${maybeError.code}` : null,
+    maybeError.details ? `Detail: ${maybeError.details}` : null,
+    maybeError.hint ? `Hint: ${maybeError.hint}` : null,
+  ].filter(Boolean);
+
+  return parts.length ? parts.join(' | ') : fallback;
 }
 
 function slugify(value: string) {

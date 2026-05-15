@@ -18,7 +18,11 @@ Gunakan checklist ini untuk testing manual sebelum demo atau deploy production.
 - [ ] Login page `/login` terbuka.
 - [ ] Register role page `/register` terbuka.
 - [ ] Register student `/register/student` berhasil membuat auth user dan profile role `student`.
+- [ ] Register student menampilkan select kelas jika kelas tersedia.
+- [ ] Student yang memilih kelas punya `profiles.class_id`.
 - [ ] Register teacher `/register/teacher` berhasil membuat auth user dan profile role `teacher`.
+- [ ] Email confirmation redirect ke `/auth/callback`, lalu ke `/login?confirmed=1`.
+- [ ] Login page menampilkan pesan email berhasil dikonfirmasi.
 - [ ] Forgot password `/forgot-password` terbuka dan tidak crash.
 - [ ] Login student redirect ke `/student/dashboard`.
 - [ ] Login teacher redirect ke `/teacher/dashboard`.
@@ -79,6 +83,7 @@ Gunakan checklist ini untuk testing manual sebelum demo atau deploy production.
 - [ ] `/teacher/classes` load classes milik teacher.
 - [ ] Teacher bisa create class.
 - [ ] Teacher bisa edit class.
+- [ ] Guru membuat kelas dulu sebelum siswa memilih kelas saat register.
 - [ ] `/teacher/classes/[classId]` load detail class.
 - [ ] Tabs detail class berjalan: Overview, Daftar Siswa, Progress Modul, Nilai & Evaluasi, Refleksi.
 - [ ] Teacher tidak bisa akses class milik teacher lain.

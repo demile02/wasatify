@@ -245,6 +245,11 @@ to authenticated
 using (public.is_admin())
 with check (public.is_admin());
 
+create policy "classes_select_public_registration"
+on public.classes for select
+to anon
+using (true);
+
 create policy "classes_select_related"
 on public.classes for select
 to authenticated
@@ -620,8 +625,8 @@ to authenticated
 using (
   teacher_id = auth.uid()
   or (
-    status = 'published'
-    published_at is not null
+    coalesce(status, 'draft') = 'published'
+    and published_at is not null
     and published_at <= now()
     and (
       class_id is null

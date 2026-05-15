@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Eye, EyeOff, Lock, Mail } from 'lucide-react';
 import Link from 'next/link';
@@ -19,6 +19,7 @@ import { cn } from '@/lib/utils';
 
 type LoginFormProps = {
   nextPath?: string;
+  confirmed?: boolean;
 };
 
 const loginSchema = z.object({
@@ -29,7 +30,7 @@ const loginSchema = z.object({
 
 type LoginFormValues = z.infer<typeof loginSchema>;
 
-export function LoginForm({ nextPath }: LoginFormProps) {
+export function LoginForm({ nextPath, confirmed = false }: LoginFormProps) {
   const router = useRouter();
   const [role, setRole] = useState<AppRole>('student');
   const [showPassword, setShowPassword] = useState(false);
@@ -46,6 +47,12 @@ export function LoginForm({ nextPath }: LoginFormProps) {
       remember: false,
     },
   });
+
+  useEffect(() => {
+    if (confirmed) {
+      toast.success('Email berhasil dikonfirmasi. Silakan login.');
+    }
+  }, [confirmed]);
 
   async function onSubmit(values: LoginFormValues) {
     setError('');
@@ -121,6 +128,7 @@ export function LoginForm({ nextPath }: LoginFormProps) {
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="mt-8 space-y-5">
+        {confirmed && <AuthAlert type="success" message="Email berhasil dikonfirmasi. Silakan login." />}
         {error && <AuthAlert type="error" message={error} />}
 
         <AuthInput
@@ -163,6 +171,9 @@ export function LoginForm({ nextPath }: LoginFormProps) {
             />
             Ingat saya
           </label>
+          <span className="text-xs text-muted-foreground">
+            Sesi disimpan otomatis oleh Supabase di browser ini.
+          </span>
           <Link href="/forgot-password" className="font-semibold text-primary hover:underline">
             Lupa password?
           </Link>
