@@ -32,6 +32,35 @@ export async function saveAnnouncementAction(input: z.infer<typeof announcementS
     } = await supabase.auth.getUser();
 
     if (!user) return { ok: false, error: 'Sesi guru belum aktif. Silakan masuk kembali.' };
+    const isAdmin = await currentUserIsAdmin(supabase, user.id);
+
+    if (parsed.data.classId && !isAdmin) {
+      const { data: classRow, error: classError } = await supabase
+        .from('classes')
+        .select('id')
+        .eq('id', parsed.data.classId)
+        .eq('teacher_id', user.id)
+        .maybeSingle();
+
+      if (classError) throw classError;
+      if (!classRow) {
+        return { ok: false, error: 'Kelas tujuan tidak tersedia untuk akun guru ini.' };
+      }
+    }
+
+    if (parsed.data.id && !isAdmin) {
+      const { data: announcement, error: announcementError } = await supabase
+        .from('announcements')
+        .select('id')
+        .eq('id', parsed.data.id)
+        .eq('teacher_id', user.id)
+        .maybeSingle();
+
+      if (announcementError) throw announcementError;
+      if (!announcement) {
+        return { ok: false, error: 'Anda tidak memiliki akses untuk mengubah pengumuman ini.' };
+      }
+    }
 
     const payload = {
       teacher_id: user.id,
@@ -60,13 +89,21 @@ export async function toggleAnnouncementStatusAction(id: string, nextStatus: 'dr
 
   try {
     const supabase = await createClient();
-    const { error } = await supabase
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) return { ok: false, error: 'Sesi guru belum aktif. Silakan masuk kembali.' };
+
+    const query = supabase
       .from('announcements')
       .update({
         status: nextStatus,
         published_at: nextStatus === 'published' ? new Date().toISOString() : null,
       })
       .eq('id', id);
+
+    const { error } = (await currentUserIsAdmin(supabase, user.id)) ? await query : await query.eq('teacher_id', user.id);
 
     if (error) throw error;
     revalidateTeacherAnnouncementPaths();
@@ -82,7 +119,14 @@ export async function deleteAnnouncementAction(id: string): Promise<ActionResult
 
   try {
     const supabase = await createClient();
-    const { error } = await supabase.from('announcements').delete().eq('id', id);
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) return { ok: false, error: 'Sesi guru belum aktif. Silakan masuk kembali.' };
+
+    const query = supabase.from('announcements').delete().eq('id', id);
+    const { error } = (await currentUserIsAdmin(supabase, user.id)) ? await query : await query.eq('teacher_id', user.id);
 
     if (error) throw error;
     revalidateTeacherAnnouncementPaths();
@@ -97,4 +141,9 @@ function revalidateTeacherAnnouncementPaths() {
   revalidatePath('/teacher/announcements');
   revalidatePath('/teacher/dashboard');
   revalidatePath('/student/dashboard');
+}
+
+async function currentUserIsAdmin(supabase: Awaited<ReturnType<typeof createClient>>, userId: string) {
+  const { data } = await supabase.from('profiles').select('role').eq('id', userId).maybeSingle<{ role: string | null }>();
+  return data?.role === 'admin';
 }

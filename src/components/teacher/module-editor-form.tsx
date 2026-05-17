@@ -138,15 +138,29 @@ export function ModuleEditorForm({ mode, initialData, classes }: ModuleEditorFor
     setForm((current) => ({ ...current, ...patch }));
   }
 
-  function updateTitle(title: string) {
+function updateTitle(title: string) {
     setForm((current) => ({
       ...current,
       title,
-      slug: current.slug ? current.slug : slugify(title),
+      slug: shouldAutoUpdateSlug(current) ? slugify(title) : current.slug,
     }));
-  }
+}
 
-  function updateLesson(clientId: string, patch: Partial<LessonState>) {
+function normalizeQuizPatch(
+  currentQuiz: FormState['quiz'],
+  quizPatch: Partial<FormState['quiz']>,
+): FormState['quiz'] {
+  const nextQuiz = { ...currentQuiz, ...quizPatch };
+  const maxAttempts = Math.max(Math.round(Number(nextQuiz.maxAttempts) || 1), 1);
+
+  return {
+    ...nextQuiz,
+    maxAttempts,
+    allowRetake: maxAttempts > 1 ? nextQuiz.allowRetake : false,
+  };
+}
+
+function updateLesson(clientId: string, patch: Partial<LessonState>) {
     setForm((current) => ({
       ...current,
       lessons: current.lessons.map((lesson) => (lesson.clientId === clientId ? { ...lesson, ...patch } : lesson)),
@@ -340,9 +354,7 @@ export function ModuleEditorForm({ mode, initialData, classes }: ModuleEditorFor
         {activeStep === 'quiz' && (
           <QuizStep
             quiz={form.quiz}
-            updateQuiz={(quizPatch) =>
-              setForm((current) => ({ ...current, quiz: { ...current.quiz, ...quizPatch } }))
-            }
+            updateQuiz={(quizPatch) => setForm((current) => ({ ...current, quiz: normalizeQuizPatch(current.quiz, quizPatch) }))}
             updateQuestion={updateQuestion}
             updateQuestionOption={updateQuestionOption}
             addQuestion={() =>
@@ -466,6 +478,9 @@ function InfoStep({
               placeholder="adab-dalam-islam"
               className={inputClass}
             />
+            <p className="mt-2 text-xs leading-5 text-muted-foreground">
+              Slug digunakan untuk URL modul. Akan dibuat otomatis dari judul.
+            </p>
           </Field>
           <Field label="Difficulty">
             <select
@@ -720,6 +735,8 @@ function QuizStep({
   addQuestion: () => void;
   removeQuestion: (clientId: string) => void;
 }) {
+  const retakeDisabled = Math.max(Math.round(quiz.maxAttempts || 1), 1) <= 1;
+
   return (
     <SectionCard>
       <div className="grid gap-4 sm:grid-cols-2">
@@ -730,7 +747,7 @@ function QuizStep({
             className={inputClass}
           />
         </Field>
-        <Field label="Passing Score">
+        <Field label="Nilai Kelulusan">
           <input
             type="number"
             min={0}
@@ -740,7 +757,7 @@ function QuizStep({
             className={inputClass}
           />
         </Field>
-        <Field label="Max Attempts">
+        <Field label="Jumlah Kesempatan">
           <input
             type="number"
             min={1}
@@ -759,15 +776,28 @@ function QuizStep({
           />
         </Field>
         <label className="flex items-center justify-between rounded-2xl border border-border bg-white px-4 py-3">
-          <span className="font-bold text-ink">Allow Retake</span>
-          <input type="checkbox" checked={quiz.allowRetake} onChange={(event) => updateQuiz({ allowRetake: event.target.checked })} className="h-5 w-5 accent-primary" />
+          <span>
+            <span className="block font-bold text-ink">Izinkan Mengulang</span>
+            {retakeDisabled && (
+              <span className="mt-1 block text-xs font-semibold text-muted-foreground">
+                Retake hanya tersedia jika Jumlah Kesempatan lebih dari 1.
+              </span>
+            )}
+          </span>
+          <input
+            type="checkbox"
+            checked={!retakeDisabled && quiz.allowRetake}
+            disabled={retakeDisabled}
+            onChange={(event) => updateQuiz({ allowRetake: event.target.checked })}
+            className="h-5 w-5 accent-primary disabled:cursor-not-allowed disabled:opacity-45"
+          />
         </label>
         <label className="flex items-center justify-between rounded-2xl border border-border bg-white px-4 py-3">
-          <span className="font-bold text-ink">Show Explanation</span>
+          <span className="font-bold text-ink">Tampilkan Pembahasan</span>
           <input type="checkbox" checked={quiz.showExplanation} onChange={(event) => updateQuiz({ showExplanation: event.target.checked })} className="h-5 w-5 accent-primary" />
         </label>
         <label className="flex items-center justify-between rounded-2xl border border-border bg-white px-4 py-3">
-          <span className="font-bold text-ink">Shuffle Questions</span>
+          <span className="font-bold text-ink">Acak Pertanyaan</span>
           <input type="checkbox" checked={quiz.shuffleQuestions} onChange={(event) => updateQuiz({ shuffleQuestions: event.target.checked })} className="h-5 w-5 accent-primary" />
         </label>
         <Field label="Quiz Status">
@@ -1164,10 +1194,18 @@ function formatDraftDate(value: string) {
 function slugify(value: string) {
   return value
     .toLowerCase()
+    .trim()
     .normalize('NFKD')
     .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/[^a-z0-9-]+/g, '-')
+    .replace(/-+/g, '-')
     .replace(/^-+|-+$/g, '');
+}
+
+function shouldAutoUpdateSlug(form: FormState) {
+  const currentSlug = form.slug.trim();
+  if (!currentSlug) return true;
+  return currentSlug === slugify(form.title);
 }
 
 async function uploadModuleFile(file: File, bucket: 'module-covers' | 'module-media', folder: string): Promise<UploadedAssetInput> {

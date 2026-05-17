@@ -1,4 +1,5 @@
 import { demoStudentActivities, demoStudentModules } from '@/lib/demo/student';
+import { getStudentClassTeacherContext } from '@/lib/scope';
 import { createClient, isSupabaseConfigured } from '@/lib/supabase/server';
 import type { ModuleStatus } from '@/lib/types';
 
@@ -138,34 +139,55 @@ export async function getStudentProgressData(studentId: string): Promise<Student
 
   try {
     const supabase = await createClient();
+    const scope = await getStudentClassTeacherContext(studentId);
+    if (!scope.teacherId) {
+      return emptyStudentProgressData();
+    }
+
     const { data: moduleRows, error: moduleError } = await supabase
       .from('modules')
       .select('id, slug, title, estimated_minutes')
       .eq('status', 'published')
+      .eq('created_by', scope.teacherId)
       .order('order_index', { ascending: true });
 
     if (moduleError) throw moduleError;
 
     const modules = (moduleRows ?? []) as ModuleRow[];
     const moduleTitleById = new Map(modules.map((moduleItem) => [moduleItem.id, moduleItem.title]));
+    const moduleIds = modules.map((moduleItem) => moduleItem.id);
+    const { data: scopedQuizRows } = moduleIds.length
+      ? await supabase.from('quizzes').select('id, title, module_id').in('module_id', moduleIds)
+      : { data: [] };
+    const scopedQuizzes = (scopedQuizRows ?? []) as QuizRow[];
+    const scopedQuizIds = scopedQuizzes.map((quiz) => quiz.id);
 
     const [profileResult, progressResult, quizAttemptResult, reflectionResult, achievementResult, studentAchievementResult] =
       await Promise.all([
         supabase.from('profiles').select('xp, streak_count').eq('id', studentId).maybeSingle<ProfileProgressRow>(),
-        supabase
-          .from('module_progress')
-          .select('module_id, status, progress_percent, completed_at, last_accessed_at, updated_at, created_at')
-          .eq('student_id', studentId),
-        supabase
-          .from('quiz_attempts')
-          .select('id, quiz_id, score, passed, submitted_at, created_at')
-          .eq('student_id', studentId)
-          .order('submitted_at', { ascending: false }),
-        supabase
-          .from('reflections')
-          .select('id, module_id, created_at')
-          .eq('student_id', studentId)
-          .order('created_at', { ascending: false }),
+        moduleIds.length
+          ? supabase
+              .from('module_progress')
+              .select('module_id, status, progress_percent, completed_at, last_accessed_at, updated_at, created_at')
+              .eq('student_id', studentId)
+              .in('module_id', moduleIds)
+          : Promise.resolve({ data: [], error: null }),
+        scopedQuizIds.length
+          ? supabase
+              .from('quiz_attempts')
+              .select('id, quiz_id, score, passed, submitted_at, created_at')
+              .eq('student_id', studentId)
+              .in('quiz_id', scopedQuizIds)
+              .order('submitted_at', { ascending: false })
+          : Promise.resolve({ data: [], error: null }),
+        moduleIds.length
+          ? supabase
+              .from('reflections')
+              .select('id, module_id, created_at')
+              .eq('student_id', studentId)
+              .in('module_id', moduleIds)
+              .order('created_at', { ascending: false })
+          : Promise.resolve({ data: [], error: null }),
         supabase.from('achievements').select('id, code, title, description, icon, xp_reward'),
         supabase
           .from('student_achievements')
@@ -232,9 +254,7 @@ export async function getStudentProgressData(studentId: string): Promise<Student
       };
     });
 
-    const quizIds = [...new Set(quizAttempts.map((attempt) => attempt.quiz_id))];
-    const quizRows = await getQuizRows(quizIds);
-    const quizById = new Map(quizRows.map((quiz) => [quiz.id, quiz]));
+    const quizById = new Map(scopedQuizzes.map((quiz) => [quiz.id, quiz]));
     const badges = buildBadges(achievements, studentAchievements);
     const completedModules = progressModules.filter((moduleItem) => moduleItem.status === 'completed');
     const overallProgress = progressModules.length
@@ -281,23 +301,7 @@ export async function getStudentProgressData(studentId: string): Promise<Student
       isDemo: false,
     };
   } catch {
-    return {
-      overallProgress: 0,
-      xp: 0,
-      streakDays: 0,
-      studyMinutes: 0,
-      totalModules: 0,
-      totalCompletedModules: 0,
-      totalQuizAttempts: 0,
-      totalReflections: 0,
-      reflectionModuleCount: 0,
-      completedModules: [],
-      modules: [],
-      badges: [],
-      activities: [],
-      quizHistory: [],
-      isDemo: false,
-    };
+    return emptyStudentProgressData();
   }
 }
 
@@ -350,12 +354,24 @@ async function unlockEligibleAchievements({
   };
 }
 
-async function getQuizRows(quizIds: string[]) {
-  if (!quizIds.length) return [];
-
-  const supabase = await createClient();
-  const { data } = await supabase.from('quizzes').select('id, title, module_id').in('id', quizIds);
-  return (data ?? []) as QuizRow[];
+function emptyStudentProgressData(): StudentProgressData {
+  return {
+    overallProgress: 0,
+    xp: 0,
+    streakDays: 0,
+    studyMinutes: 0,
+    totalModules: 0,
+    totalCompletedModules: 0,
+    totalQuizAttempts: 0,
+    totalReflections: 0,
+    reflectionModuleCount: 0,
+    completedModules: [],
+    modules: [],
+    badges: [],
+    activities: [],
+    quizHistory: [],
+    isDemo: false,
+  };
 }
 
 function buildBadges(achievements: AchievementRow[], studentAchievements: StudentAchievementRow[]) {

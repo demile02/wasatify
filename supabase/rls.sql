@@ -282,6 +282,12 @@ on public.classes for delete
 to authenticated
 using (public.is_teacher() and teacher_id = auth.uid());
 
+drop policy if exists "modules_admin_all" on public.modules;
+drop policy if exists "modules_select_student_published_or_teacher_own" on public.modules;
+drop policy if exists "modules_insert_teacher_own" on public.modules;
+drop policy if exists "modules_update_teacher_own" on public.modules;
+drop policy if exists "modules_delete_teacher_own" on public.modules;
+
 create policy "modules_admin_all"
 on public.modules for all
 to authenticated
@@ -322,6 +328,12 @@ on public.modules for delete
 to authenticated
 using (public.is_teacher() and public.teacher_owns_module(id));
 
+drop policy if exists "lessons_admin_all" on public.lessons;
+drop policy if exists "lessons_select_student_or_teacher" on public.lessons;
+drop policy if exists "lessons_insert_teacher_module" on public.lessons;
+drop policy if exists "lessons_update_teacher_module" on public.lessons;
+drop policy if exists "lessons_delete_teacher_module" on public.lessons;
+
 create policy "lessons_admin_all"
 on public.lessons for all
 to authenticated
@@ -351,6 +363,12 @@ create policy "lessons_delete_teacher_module"
 on public.lessons for delete
 to authenticated
 using (public.is_teacher() and public.teacher_owns_module(module_id));
+
+drop policy if exists "quizzes_admin_all" on public.quizzes;
+drop policy if exists "quizzes_select_student_or_teacher" on public.quizzes;
+drop policy if exists "quizzes_insert_teacher_module" on public.quizzes;
+drop policy if exists "quizzes_update_teacher_module" on public.quizzes;
+drop policy if exists "quizzes_delete_teacher_module" on public.quizzes;
 
 create policy "quizzes_admin_all"
 on public.quizzes for all
@@ -389,6 +407,12 @@ create policy "quizzes_delete_teacher_own"
 on public.quizzes for delete
 to authenticated
 using (public.is_teacher() and public.teacher_owns_quiz(id));
+
+drop policy if exists "quiz_questions_admin_all" on public.quiz_questions;
+drop policy if exists "quiz_questions_select_student_or_teacher" on public.quiz_questions;
+drop policy if exists "quiz_questions_insert_teacher_quiz" on public.quiz_questions;
+drop policy if exists "quiz_questions_update_teacher_quiz" on public.quiz_questions;
+drop policy if exists "quiz_questions_delete_teacher_quiz" on public.quiz_questions;
 
 create policy "quiz_questions_admin_all"
 on public.quiz_questions for all

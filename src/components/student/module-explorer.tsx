@@ -50,7 +50,7 @@ export function ModuleExplorer({ modules }: ModuleExplorerProps) {
         className="mt-8"
         icon={BookOpen}
         title="Belum ada modul tersedia"
-        description="Modul published dari Supabase akan tampil di sini setelah tersedia."
+        description="Kamu belum tergabung dalam kelas, atau guru kelasmu belum mempublikasikan modul."
       />
     );
   }

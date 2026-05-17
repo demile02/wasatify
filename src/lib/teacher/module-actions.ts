@@ -163,6 +163,11 @@ function validateModuleInput(input: SaveTeacherModuleInput) {
   }
 
   const filledQuestions = input.quiz.questions.filter((question) => question.questionText.trim());
+  const maxAttempts = Math.max(Math.round(input.quiz.maxAttempts), 1);
+
+  if (maxAttempts === 1 && input.quiz.allowRetake) {
+    return 'Izinkan Mengulang hanya tersedia jika Jumlah Kesempatan lebih dari 1.';
+  }
 
   if (input.intent === 'publish' && !filledQuestions.length) {
     return 'Tambahkan minimal satu pertanyaan kuis sebelum publish.';
@@ -188,13 +193,19 @@ function validateModuleInput(input: SaveTeacherModuleInput) {
 
 async function createModule(payload: Record<string, unknown>) {
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from('modules')
-    .insert(payload)
-    .select('id')
-    .single<{ id: string }>();
+  const { error } = await supabase.from('modules').insert(payload);
 
   if (error) throw error;
+
+  const { data, error: selectError } = await supabase
+    .from('modules')
+    .select('id')
+    .eq('slug', String(payload.slug))
+    .maybeSingle<{ id: string }>();
+
+  if (selectError) throw selectError;
+  if (!data) throw new Error('Modul berhasil dibuat, tetapi ID modul belum bisa dibaca.');
+
   return data.id;
 }
 
@@ -291,7 +302,7 @@ async function syncQuiz(
     passing_score: clampNumber(quiz.passingScore, 0, 100),
     max_attempts: Math.max(Math.round(quiz.maxAttempts), 1),
     time_limit_seconds: Math.max(Math.round(quiz.timeLimitSeconds), 60),
-    allow_retake: quiz.allowRetake,
+    allow_retake: Math.max(Math.round(quiz.maxAttempts), 1) > 1 && quiz.allowRetake,
     show_explanation: quiz.showExplanation,
     shuffle_questions: quiz.shuffleQuestions,
     is_published: publishQuiz || quiz.isPublished,
@@ -304,9 +315,20 @@ async function syncQuiz(
 
 async function createQuiz(payload: Record<string, unknown>) {
   const supabase = await createClient();
-  const { data, error } = await supabase.from('quizzes').insert(payload).select('id').single<QuizIdRow>();
+  const { error } = await supabase.from('quizzes').insert(payload);
 
   if (error) throw error;
+
+  const { data, error: selectError } = await supabase
+    .from('quizzes')
+    .select('id')
+    .eq('module_id', String(payload.module_id))
+    .eq('title', String(payload.title))
+    .maybeSingle<QuizIdRow>();
+
+  if (selectError) throw selectError;
+  if (!data) throw new Error('Kuis berhasil dibuat, tetapi ID kuis belum bisa dibaca.');
+
   return data.id;
 }
 

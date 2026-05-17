@@ -61,7 +61,7 @@ export default async function StudentProgressPage() {
               className="mt-6"
               icon={BookOpenCheck}
               title="Belum ada progress modul"
-              description="Progress akan muncul setelah kamu mulai belajar modul published."
+              description="Progress akan muncul setelah kamu mulai belajar modul dari guru kelasmu."
             />
           )}
         </SectionCard>

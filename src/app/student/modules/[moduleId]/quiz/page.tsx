@@ -70,12 +70,52 @@ export default async function StudentQuizPage({ params }: QuizPageProps) {
     );
   }
 
+  if (quizData.attemptInfo && !quizData.attemptInfo.canAttempt) {
+    return (
+      <div>
+        <PageHeader
+          eyebrow="Kuis Pemahaman"
+          title="Kesempatan kuis sudah habis"
+          description={`Kamu sudah menggunakan ${quizData.attemptInfo.attemptsCount} dari ${quizData.attemptInfo.maxAttempts} kesempatan untuk modul ${quizData.module.title}.`}
+        />
+        <EmptyState
+          className="mt-8"
+          icon={ClipboardList}
+          title="Kesempatan kuis sudah habis"
+          description={
+            quizData.attemptInfo.bestScore === null
+              ? 'Kamu belum bisa mengulang kuis ini.'
+              : `Nilai terbaik kamu: ${quizData.attemptInfo.bestScore}/100.`
+          }
+          action={
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <Button asChild variant="outline">
+                <Link href={`/student/modules/${quizData.module.id}`}>Kembali ke Modul</Link>
+              </Button>
+              {quizData.attemptInfo.latestAttemptId && (
+                <Button asChild>
+                  <Link href={`/student/modules/${quizData.module.id}/quiz/result?attemptId=${quizData.attemptInfo.latestAttemptId}`}>
+                    Lihat Hasil Terakhir
+                  </Link>
+                </Button>
+              )}
+            </div>
+          }
+        />
+      </div>
+    );
+  }
+
   return (
     <div>
       <PageHeader
         eyebrow="Kuis Pemahaman"
         title="Kuis Pemahaman"
-        description={quizData.module.title}
+        description={
+          quizData.attemptInfo
+            ? `${quizData.module.title} • Percobaan ${quizData.attemptInfo.attemptsCount + 1} dari ${quizData.attemptInfo.maxAttempts}`
+            : quizData.module.title
+        }
         actions={
           <Button asChild variant="outline">
             <Link href={`/student/modules/${quizData.module.id}`}>
@@ -87,7 +127,12 @@ export default async function StudentQuizPage({ params }: QuizPageProps) {
       />
 
       <div className="mt-8">
-        <QuizPlayer moduleId={quizData.module.id} quiz={quizData.quiz} />
+        <QuizPlayer
+          moduleId={quizData.module.id}
+          quiz={quizData.quiz}
+          attemptInfo={quizData.attemptInfo ?? undefined}
+          studentId={profile.id}
+        />
       </div>
     </div>
   );

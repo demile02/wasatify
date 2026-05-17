@@ -10,19 +10,32 @@ import { ProgressBar } from '@/components/shared/progress-bar';
 import { SectionCard } from '@/components/shared/section-card';
 import { Button } from '@/components/ui/button';
 import { submitQuizAttemptAction, type QuizAnswerMap } from '@/lib/student/actions';
-import type { QuizQuestion, StudentQuiz } from '@/lib/student/learning';
+import type { QuizQuestion, StudentQuiz, StudentQuizAttemptInfo } from '@/lib/student/learning';
 import { cn } from '@/lib/utils';
 
 type QuizPlayerProps = {
   moduleId: string;
   quiz: StudentQuiz;
+  attemptInfo?: StudentQuizAttemptInfo;
+  studentId: string;
 };
 
-export function QuizPlayer({ moduleId, quiz }: QuizPlayerProps) {
+type QuizDraftPayload = {
+  quizId: string;
+  studentId: string;
+  attemptNumber: number;
+  startedAt: string;
+  answers: QuizAnswerMap;
+  updatedAt: string;
+};
+
+export function QuizPlayer({ moduleId, quiz, attemptInfo, studentId }: QuizPlayerProps) {
   const router = useRouter();
+  const attemptNumber = (attemptInfo?.attemptsCount ?? 0) + 1;
+  const draftKey = `wasatify:quiz-draft:${studentId}:${quiz.id}:${attemptNumber}`;
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<QuizAnswerMap>({});
-  const [startedAt] = useState(() => new Date().toISOString());
+  const [startedAt, setStartedAt] = useState(() => new Date().toISOString());
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [isPending, startTransition] = useTransition();
 
@@ -40,6 +53,50 @@ export function QuizPlayer({ moduleId, quiz }: QuizPlayerProps) {
       }, 0),
     [answers, quiz.questions],
   );
+
+  useEffect(() => {
+    try {
+      const rawDraft = window.localStorage.getItem(draftKey);
+      if (!rawDraft) return;
+
+      const draft = JSON.parse(rawDraft) as QuizDraftPayload;
+      const validDraft =
+        draft?.quizId === quiz.id &&
+        draft.studentId === studentId &&
+        draft.attemptNumber === attemptNumber &&
+        typeof draft.startedAt === 'string' &&
+        draft.answers &&
+        typeof draft.answers === 'object';
+
+      if (!validDraft) {
+        window.localStorage.removeItem(draftKey);
+        return;
+      }
+
+      setStartedAt(draft.startedAt);
+      setAnswers(normalizeDraftAnswers(draft.answers, quiz.questions.map((question) => question.id)));
+    } catch {
+      window.localStorage.removeItem(draftKey);
+    }
+  }, [attemptNumber, draftKey, quiz.id, quiz.questions, studentId]);
+
+  useEffect(() => {
+    if (!Object.keys(answers).length) return;
+
+    try {
+      const draft: QuizDraftPayload = {
+        quizId: quiz.id,
+        studentId,
+        attemptNumber,
+        startedAt,
+        answers,
+        updatedAt: new Date().toISOString(),
+      };
+      window.localStorage.setItem(draftKey, JSON.stringify(draft));
+    } catch {
+      // Local draft is best-effort only. Supabase attempt remains the source of truth after submit.
+    }
+  }, [answers, attemptNumber, draftKey, quiz.id, startedAt, studentId]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -61,20 +118,14 @@ export function QuizPlayer({ moduleId, quiz }: QuizPlayerProps) {
   }
 
   const isLastQuestion = currentIndex === totalQuestions - 1;
-  const isMultipleChoice = currentQuestion.questionType === 'multiple_choice';
 
   function selectAnswer(optionId: string) {
     if (isPending || !currentQuestion) return;
+    if (answers[currentQuestion.id]) return;
 
     setAnswers((current) => {
-      if (!isMultipleChoice) return { ...current, [currentQuestion.id]: optionId };
-
-      const selected = splitAnswer(current[currentQuestion.id]);
-      const next = selected.includes(optionId)
-        ? selected.filter((id) => id !== optionId)
-        : [...selected, optionId];
-
-      return { ...current, [currentQuestion.id]: normalizeSelectedAnswer(next) };
+      if (current[currentQuestion.id]) return current;
+      return { ...current, [currentQuestion.id]: optionId };
     });
   }
 
@@ -118,6 +169,7 @@ export function QuizPlayer({ moduleId, quiz }: QuizPlayerProps) {
       }
 
       toast.success('Hasil kuis tersimpan.');
+      window.localStorage.removeItem(draftKey);
       const query = new URLSearchParams();
       if (result.attemptId) query.set('attemptId', result.attemptId);
       router.push(`/student/modules/${moduleId}/quiz/result?${query.toString()}`);
@@ -136,12 +188,15 @@ export function QuizPlayer({ moduleId, quiz }: QuizPlayerProps) {
 
         <div className="mb-6">
           <div className="mb-3 flex items-center justify-between gap-3 text-sm font-semibold">
-            <span>
-              Pertanyaan {currentIndex + 1} dari {totalQuestions}
-            </span>
+            <span>Pertanyaan {currentIndex + 1} dari {totalQuestions}</span>
             <span className="text-primary">{progressPercent}%</span>
           </div>
           <ProgressBar value={progressPercent} />
+          {attemptInfo && (
+            <p className="mt-3 text-sm font-semibold text-muted-foreground">
+              Percobaan {attemptInfo.attemptsCount + 1} dari {attemptInfo.maxAttempts}
+            </p>
+          )}
         </div>
 
         <h2 className="text-xl font-extrabold leading-relaxed text-ink">{currentQuestion.questionText}</h2>
@@ -157,7 +212,7 @@ export function QuizPlayer({ moduleId, quiz }: QuizPlayerProps) {
                 label={optionLabel(index)}
                 selectedAnswer={selectedAnswer}
                 onSelect={() => selectAnswer(option.id)}
-                disabled={isPending}
+                disabled={isPending || Boolean(selectedAnswer)}
               />
             ))}
           </div>
@@ -186,7 +241,7 @@ export function QuizPlayer({ moduleId, quiz }: QuizPlayerProps) {
             <ArrowLeft className="h-4 w-4" />
             Sebelumnya
           </Button>
-          <Button type="button" onClick={goNext} disabled={isPending}>
+          <Button type="button" onClick={goNext} disabled={isPending || !answers[currentQuestion.id]}>
             {isPending ? 'Menyimpan...' : isLastQuestion ? 'Selesaikan Kuis' : 'Selanjutnya'}
             <ArrowRight className="h-4 w-4" />
           </Button>
@@ -203,7 +258,12 @@ export function QuizPlayer({ moduleId, quiz }: QuizPlayerProps) {
           <div className="mt-5 space-y-4 text-sm">
             <SummaryRow label="Terjawab" value={`${answeredCount}/${totalQuestions}`} />
             <SummaryRow label="Benar sementara" value={temporaryCorrectAnswers} valueClassName="text-primary" />
-            <SummaryRow label="Passing grade" value={`${quiz.passingScore}%`} valueClassName="text-gold" last />
+            <SummaryRow label="Nilai kelulusan" value={`${quiz.passingScore}%`} valueClassName="text-gold" />
+            <SummaryRow
+              label="Kesempatan"
+              value={attemptInfo ? `${attemptInfo.attemptsCount + 1}/${attemptInfo.maxAttempts}` : quiz.maxAttempts}
+              last
+            />
           </div>
         </SectionCard>
 
@@ -299,8 +359,14 @@ function splitAnswer(answer?: string) {
   return answer ? answer.split('|').filter(Boolean) : [];
 }
 
-function normalizeSelectedAnswer(values: string[]) {
-  return [...values].sort().join('|');
+function normalizeDraftAnswers(answers: QuizAnswerMap, questionIds: string[]) {
+  const questionIdSet = new Set(questionIds);
+
+  return Object.fromEntries(
+    Object.entries(answers).filter(
+      ([questionId, answer]) => questionIdSet.has(questionId) && typeof answer === 'string' && answer.trim(),
+    ),
+  );
 }
 
 function optionLabel(index: number) {

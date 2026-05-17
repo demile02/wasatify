@@ -18,8 +18,9 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { TeacherMobileBottomNav } from '@/components/layout/teacher-mobile-bottom-nav';
 import { AppLogo } from '@/components/shared/app-logo';
-import { UserAvatar } from '@/components/shared/user-avatar';
+import { ProfileMenu } from '@/components/shared/profile-menu';
 import { Button } from '@/components/ui/button';
 import { teacherNavigation } from '@/lib/constants/navigation';
 import type { Profile } from '@/lib/types';
@@ -117,12 +118,10 @@ export function TeacherShell({ profile, children }: TeacherShellProps) {
               <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-gold" />
             </button>
 
-            <div className="rounded-2xl border border-border bg-white px-2 py-1.5 shadow-sm">
-              <UserAvatar name={profile.full_name} imageUrl={profile.avatar_url} roleLabel="Guru" />
-            </div>
+            <ProfileMenu profile={profile} roleLabel="Guru" profileHref="/teacher/settings" />
           </div>
 
-          <div className="space-y-3 border-t border-primary/10 px-5 pb-3 md:hidden">
+          <div className="border-t border-primary/10 px-5 pb-3 md:hidden">
             <div className="flex items-center gap-2 rounded-xl border border-border bg-white px-4 py-2.5 shadow-sm">
               <Search className="h-4 w-4 text-muted-foreground" />
               <input
@@ -131,35 +130,15 @@ export function TeacherShell({ profile, children }: TeacherShellProps) {
                 className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground/70"
               />
             </div>
-            <nav className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-              {teacherNavigation.map((item) => {
-                const Icon = iconMap[item.icon as keyof typeof iconMap] ?? Home;
-                const active = isActivePath(pathname, item.href, item.label);
-
-                return (
-                  <Link
-                    key={item.label}
-                    href={item.href}
-                    className={cn(
-                      'inline-flex shrink-0 items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold transition',
-                      active
-                        ? 'border-primary bg-primary text-white'
-                        : 'border-border bg-white text-muted-foreground',
-                    )}
-                  >
-                    <Icon className="h-4 w-4" />
-                    {item.label}
-                  </Link>
-                );
-              })}
-            </nav>
           </div>
         </header>
 
-        <main className="px-5 py-6 sm:px-8">
+        <main className="px-5 py-6 pb-32 sm:px-8 lg:pb-10">
           <div className="mx-auto max-w-7xl">{children}</div>
         </main>
       </div>
+
+      <TeacherMobileBottomNav />
     </div>
   );
 }

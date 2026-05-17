@@ -42,6 +42,11 @@ export function QuizResult({ result }: QuizResultProps) {
           <ResultMetric label="Total Pertanyaan" value={result.totalQuestions} />
           <ResultMetric label="Durasi" value={formatDuration(result.elapsedSeconds)} />
         </div>
+        {result.bestScore !== null && result.bestScore !== result.score && (
+          <p className="mt-4 text-sm font-semibold text-muted-foreground">
+            Nilai terbaik kamu: <span className="text-primary">{result.bestScore}/100</span>
+          </p>
+        )}
 
         <ProgressBar value={result.score} label="Performa Kamu" showValue className="mt-8" />
 

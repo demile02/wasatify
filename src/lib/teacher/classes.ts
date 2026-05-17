@@ -1,4 +1,5 @@
 import { createClient, isSupabaseConfigured } from '@/lib/supabase/server';
+import { averageBestQuizScore, calculateClassProgress } from '@/lib/teacher/progress-calculation';
 import type { Profile } from '@/lib/types';
 
 export type TeacherClassListItem = {
@@ -31,12 +32,22 @@ type StudentRow = {
 
 type ProgressRow = {
   student_id: string;
+  module_id: string;
   progress_percent: number | null;
 };
 
 type QuizAttemptRow = {
   student_id: string;
+  quiz_id: string;
   score: number | null;
+};
+
+type ModuleIdRow = {
+  id: string;
+};
+
+type QuizIdRow = {
+  id: string;
 };
 
 export async function getTeacherClasses(profile: Profile): Promise<TeacherClassListItem[]> {
@@ -70,27 +81,41 @@ export async function getTeacherClasses(profile: Profile): Promise<TeacherClassL
 
     const students = (studentRows ?? []) as StudentRow[];
     const studentIds = students.map((student) => student.id);
+    let moduleQuery = supabase.from('modules').select('id').eq('status', 'published');
+    if (profile.role === 'teacher') {
+      moduleQuery = moduleQuery.eq('created_by', profile.id);
+    }
+    const { data: moduleRows, error: moduleError } = await moduleQuery;
+    if (moduleError) throw moduleError;
+
+    const moduleIds = ((moduleRows ?? []) as ModuleIdRow[]).map((moduleItem) => moduleItem.id);
+    const { data: quizRows } = moduleIds.length
+      ? await supabase.from('quizzes').select('id').in('module_id', moduleIds)
+      : { data: [] };
+    const quizIds = ((quizRows ?? []) as QuizIdRow[]).map((quiz) => quiz.id);
+
     const [progressResult, attemptsResult] = await Promise.all([
-      studentIds.length
-        ? supabase.from('module_progress').select('student_id, progress_percent').in('student_id', studentIds)
+      studentIds.length && moduleIds.length
+        ? supabase
+            .from('module_progress')
+            .select('student_id, module_id, progress_percent')
+            .in('student_id', studentIds)
+            .in('module_id', moduleIds)
         : Promise.resolve({ data: [], error: null }),
-      studentIds.length
-        ? supabase.from('quiz_attempts').select('student_id, score').in('student_id', studentIds)
+      studentIds.length && quizIds.length
+        ? supabase.from('quiz_attempts').select('student_id, quiz_id, score').in('student_id', studentIds).in('quiz_id', quizIds)
         : Promise.resolve({ data: [], error: null }),
     ]);
 
     const progressRows = progressResult.error ? [] : ((progressResult.data ?? []) as ProgressRow[]);
     const attempts = attemptsResult.error ? [] : ((attemptsResult.data ?? []) as QuizAttemptRow[]);
     const studentsByClass = groupBy(students, (student) => student.class_id ?? 'none');
-    const progressByStudent = groupBy(progressRows, (progress) => progress.student_id);
     const attemptsByStudent = groupBy(attempts, (attempt) => attempt.student_id);
     const activeSince = Date.now() - 30 * 24 * 60 * 60 * 1000;
 
     return classes.map((classItem) => {
       const classStudents = studentsByClass.get(classItem.id) ?? [];
-      const classProgressRows = classStudents.flatMap((student) => progressByStudent.get(student.id) ?? []);
       const classAttempts = classStudents.flatMap((student) => attemptsByStudent.get(student.id) ?? []);
-      const scoredAttempts = classAttempts.filter((attempt) => typeof attempt.score === 'number');
 
       return {
         id: classItem.id,
@@ -104,15 +129,8 @@ export async function getTeacherClasses(profile: Profile): Promise<TeacherClassL
           if (!student.last_active_at) return false;
           return new Date(student.last_active_at).getTime() >= activeSince;
         }).length,
-        averageProgress: classProgressRows.length
-          ? Math.round(
-              classProgressRows.reduce((total, progress) => total + clamp(progress.progress_percent ?? 0), 0) /
-                classProgressRows.length,
-            )
-          : 0,
-        averageQuizScore: scoredAttempts.length
-          ? Math.round(scoredAttempts.reduce((total, attempt) => total + Number(attempt.score ?? 0), 0) / scoredAttempts.length)
-          : 0,
+        averageProgress: calculateClassProgress(classStudents, moduleIds, progressRows),
+        averageQuizScore: averageBestQuizScore(classAttempts),
       };
     });
   } catch {
@@ -153,13 +171,27 @@ export async function getTeacherStudentProgress(teacherId: string) {
   const students = await getTeacherStudents(teacherId);
   const studentIds = students.map((student) => student.id as string);
   if (!studentIds.length) return [];
+  const moduleIds = await getTeacherModuleIds(teacherId);
+  if (!moduleIds.length) return [];
 
   const { data, error } = await supabase
     .from('module_progress')
     .select('student_id, module_id, status, progress_percent, completed_at, updated_at')
-    .in('student_id', studentIds);
+    .in('student_id', studentIds)
+    .in('module_id', moduleIds);
 
   return error ? [] : data ?? [];
+}
+
+async function getTeacherModuleIds(teacherId: string) {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('modules')
+    .select('id')
+    .eq('created_by', teacherId)
+    .eq('status', 'published');
+
+  return error ? [] : ((data ?? []) as ModuleIdRow[]).map((moduleItem) => moduleItem.id);
 }
 
 function groupBy<T>(items: T[], keyFn: (item: T) => string) {
@@ -171,8 +203,4 @@ function groupBy<T>(items: T[], keyFn: (item: T) => string) {
   }
 
   return groups;
-}
-
-function clamp(value: number) {
-  return Math.min(Math.max(Math.round(value), 0), 100);
 }

@@ -1,4 +1,11 @@
 import { createClient, isSupabaseConfigured } from '@/lib/supabase/server';
+import {
+  averageBestQuizScore,
+  calculateClassProgress,
+  calculateModuleAverageProgress,
+  calculateStudentProgressForModules,
+  countCompletedModulesForStudent,
+} from '@/lib/teacher/progress-calculation';
 import type { Profile } from '@/lib/types';
 
 export type TeacherClassInfo = {
@@ -96,6 +103,7 @@ type ClassRow = {
   description: string | null;
   grade_level: string | null;
   academic_year?: string | null;
+  teacher_id?: string | null;
 };
 
 type StudentRow = {
@@ -192,7 +200,7 @@ async function loadTeacherAnalyticsSource(profile: Profile, classId?: string) {
   const supabase = await createClient();
   let classQuery = supabase
     .from('classes')
-    .select('id, name, description, grade_level, academic_year')
+    .select('id, name, description, grade_level, academic_year, teacher_id')
     .order('name', { ascending: true });
 
   if (classId) {
@@ -222,12 +230,16 @@ async function loadTeacherAnalyticsSource(profile: Profile, classId?: string) {
   const students = (studentsResult.data ?? []) as StudentRow[];
   const studentIds = students.map((student) => student.id);
 
-  let moduleQuery = supabase.from('modules').select('id, title, class_id, status').order('order_index', { ascending: true });
+  let moduleQuery = supabase
+    .from('modules')
+    .select('id, title, class_id, status')
+    .eq('status', 'published')
+    .order('order_index', { ascending: true });
 
-  if (classId) {
-    moduleQuery = moduleQuery.eq('class_id', classId);
-  } else if (classIds.length) {
-    moduleQuery = moduleQuery.in('class_id', classIds);
+  if (profile.role === 'teacher') {
+    moduleQuery = moduleQuery.eq('created_by', profile.id);
+  } else if (classId && classes[0]?.teacher_id) {
+    moduleQuery = moduleQuery.eq('created_by', classes[0].teacher_id);
   }
 
   const { data: moduleRows, error: moduleError } = await moduleQuery;
@@ -236,32 +248,48 @@ async function loadTeacherAnalyticsSource(profile: Profile, classId?: string) {
   const modules = (moduleRows ?? []) as ModuleRow[];
   const moduleIds = modules.map((moduleItem) => moduleItem.id);
 
-  const [lessonsResult, quizzesResult, progressResult, attemptsResult, reflectionsResult] = await Promise.all([
+  const [lessonsResult, quizzesResult] = await Promise.all([
     moduleIds.length
       ? supabase.from('lessons').select('id, module_id').in('module_id', moduleIds)
       : Promise.resolve({ data: [], error: null }),
     moduleIds.length
       ? supabase.from('quizzes').select('id, module_id, title').in('module_id', moduleIds)
       : Promise.resolve({ data: [], error: null }),
-    studentIds.length
+  ]);
+
+  if (lessonsResult.error || quizzesResult.error) {
+    throw lessonsResult.error ?? quizzesResult.error;
+  }
+
+  const quizzes = (quizzesResult.data ?? []) as QuizRow[];
+  const quizIds = quizzes.map((quiz) => quiz.id);
+
+  const [progressResult, attemptsResult, reflectionsResult] = await Promise.all([
+    studentIds.length && moduleIds.length
       ? supabase
           .from('module_progress')
           .select('student_id, module_id, status, progress_percent, completed_at, updated_at, created_at')
           .in('student_id', studentIds)
+          .in('module_id', moduleIds)
       : Promise.resolve({ data: [], error: null }),
-    studentIds.length
+    studentIds.length && quizIds.length
       ? supabase
           .from('quiz_attempts')
           .select('id, quiz_id, student_id, score, submitted_at, created_at')
           .in('student_id', studentIds)
+          .in('quiz_id', quizIds)
       : Promise.resolve({ data: [], error: null }),
-    studentIds.length
-      ? supabase.from('reflections').select('id, student_id, module_id, created_at').in('student_id', studentIds)
+    studentIds.length && moduleIds.length
+      ? supabase
+          .from('reflections')
+          .select('id, student_id, module_id, created_at')
+          .in('student_id', studentIds)
+          .in('module_id', moduleIds)
       : Promise.resolve({ data: [], error: null }),
   ]);
 
-  if (lessonsResult.error || quizzesResult.error || progressResult.error || attemptsResult.error || reflectionsResult.error) {
-    throw lessonsResult.error ?? quizzesResult.error ?? progressResult.error ?? attemptsResult.error ?? reflectionsResult.error;
+  if (progressResult.error || attemptsResult.error || reflectionsResult.error) {
+    throw progressResult.error ?? attemptsResult.error ?? reflectionsResult.error;
   }
 
   return {
@@ -269,7 +297,7 @@ async function loadTeacherAnalyticsSource(profile: Profile, classId?: string) {
     students,
     modules,
     lessons: (lessonsResult.data ?? []) as LessonRow[],
-    quizzes: (quizzesResult.data ?? []) as QuizRow[],
+    quizzes,
     progressRows: (progressResult.data ?? []) as ModuleProgressRow[],
     quizAttempts: (attemptsResult.data ?? []) as QuizAttemptRow[],
     reflections: (reflectionsResult.data ?? []) as ReflectionRow[],
@@ -282,9 +310,9 @@ function buildClassDetailFromSource(
 ): TeacherClassDetailData {
   return {
     classInfo: mapClassInfo(classRow),
-    metrics: calculateMetrics(source.progressRows, source.quizAttempts, source.reflections),
-    students: buildStudentProgress(source.students, source.progressRows, source.quizAttempts, source.reflections),
-    modules: buildClassModules(source.modules, source.lessons, source.progressRows, source.students.length),
+    metrics: calculateMetrics(source.students, source.modules, source.progressRows, source.quizAttempts, source.reflections),
+    students: buildStudentProgress(source.students, source.modules, source.progressRows, source.quizAttempts, source.reflections),
+    modules: buildClassModules(source.modules, source.lessons, source.progressRows, source.students),
     activities: buildClassActivities(source.students, source.modules, source.progressRows, source.quizAttempts, source.reflections),
     isDemo: false,
   };
@@ -301,7 +329,7 @@ function buildReportScope(
   return {
     classId,
     className,
-    metrics: calculateMetrics(source.progressRows, source.quizAttempts, source.reflections),
+    metrics: calculateMetrics(source.students, source.modules, source.progressRows, source.quizAttempts, source.reflections),
     completionTrend: buildCompletionTrend(source.progressRows),
     quizDistribution: buildQuizDistribution(source.quizAttempts),
     reflectionRate: buildReflectionRate(source.reflections),
@@ -318,8 +346,9 @@ function buildReportScope(
 function filterSourceByClass(source: Awaited<ReturnType<typeof loadTeacherAnalyticsSource>>, classId: string) {
   const students = source.students.filter((student) => student.class_id === classId);
   const studentIds = new Set(students.map((student) => student.id));
-  const modules = source.modules.filter((moduleItem) => moduleItem.class_id === classId);
+  const modules = source.modules;
   const moduleIds = new Set(modules.map((moduleItem) => moduleItem.id));
+  const quizIds = new Set(source.quizzes.filter((quiz) => moduleIds.has(quiz.module_id)).map((quiz) => quiz.id));
 
   return {
     classes: source.classes.filter((classItem) => classItem.id === classId),
@@ -327,24 +356,30 @@ function filterSourceByClass(source: Awaited<ReturnType<typeof loadTeacherAnalyt
     modules,
     lessons: source.lessons.filter((lesson) => moduleIds.has(lesson.module_id)),
     quizzes: source.quizzes.filter((quiz) => moduleIds.has(quiz.module_id)),
-    progressRows: source.progressRows.filter((progress) => studentIds.has(progress.student_id)),
-    quizAttempts: source.quizAttempts.filter((attempt) => studentIds.has(attempt.student_id)),
-    reflections: source.reflections.filter((reflection) => studentIds.has(reflection.student_id)),
+    progressRows: source.progressRows.filter(
+      (progress) => studentIds.has(progress.student_id) && moduleIds.has(progress.module_id),
+    ),
+    quizAttempts: source.quizAttempts.filter((attempt) => studentIds.has(attempt.student_id) && quizIds.has(attempt.quiz_id)),
+    reflections: source.reflections.filter(
+      (reflection) => studentIds.has(reflection.student_id) && moduleIds.has(reflection.module_id),
+    ),
   };
 }
 
 function calculateMetrics(
+  students: StudentRow[],
+  modules: ModuleRow[],
   progressRows: ModuleProgressRow[],
   quizAttempts: QuizAttemptRow[],
   reflections: ReflectionRow[],
 ): TeacherMetrics {
-  const completionRate = progressRows.length
-    ? Math.round(progressRows.reduce((total, progress) => total + clamp(progress.progress_percent ?? 0), 0) / progressRows.length)
-    : 0;
+  const completionRate = calculateClassProgress(
+    students,
+    modules.map((moduleItem) => moduleItem.id),
+    progressRows,
+  );
   const scoredAttempts = quizAttempts.filter((attempt) => typeof attempt.score === 'number');
-  const averageQuizScore = scoredAttempts.length
-    ? Math.round(scoredAttempts.reduce((total, attempt) => total + Number(attempt.score ?? 0), 0) / scoredAttempts.length)
-    : 0;
+  const averageQuizScore = averageBestQuizScore(scoredAttempts);
 
   return {
     completionRate,
@@ -356,10 +391,12 @@ function calculateMetrics(
 
 function buildStudentProgress(
   students: StudentRow[],
+  modules: ModuleRow[],
   progressRows: ModuleProgressRow[],
   quizAttempts: QuizAttemptRow[],
   reflections: ReflectionRow[],
 ): TeacherStudentProgress[] {
+  const moduleIds = modules.map((moduleItem) => moduleItem.id);
   const progressByStudent = groupBy(progressRows, (progress) => progress.student_id);
   const attemptsByStudent = groupBy(quizAttempts, (attempt) => attempt.student_id);
   const reflectionsByStudent = groupBy(reflections, (reflection) => reflection.student_id);
@@ -379,16 +416,10 @@ function buildStudentProgress(
       id: student.id,
       name: student.full_name,
       email: student.email,
-      progress: studentProgress.length
-        ? Math.round(studentProgress.reduce((total, progress) => total + clamp(progress.progress_percent ?? 0), 0) / studentProgress.length)
-        : 0,
-      averageQuizScore: scoredAttempts.length
-        ? Math.round(scoredAttempts.reduce((total, attempt) => total + Number(attempt.score ?? 0), 0) / scoredAttempts.length)
-        : 0,
+      progress: calculateStudentProgressForModules(student.id, moduleIds, progressRows),
+      averageQuizScore: averageBestQuizScore(scoredAttempts),
       reflectionsCount: studentReflections.length,
-      completedModules: studentProgress.filter(
-        (progress) => progress.status === 'completed' || progress.completed_at || progress.progress_percent === 100,
-      ).length,
+      completedModules: countCompletedModulesForStudent(student.id, moduleIds, progressRows),
       lastActive: latestDate(activityDates),
     };
   });
@@ -396,7 +427,7 @@ function buildStudentProgress(
 
 function buildReportStudents(source: Awaited<ReturnType<typeof loadTeacherAnalyticsSource>>): TeacherReportStudentRow[] {
   const classById = new Map(source.classes.map((classItem) => [classItem.id, classItem]));
-  const studentProgress = buildStudentProgress(source.students, source.progressRows, source.quizAttempts, source.reflections);
+  const studentProgress = buildStudentProgress(source.students, source.modules, source.progressRows, source.quizAttempts, source.reflections);
 
   return studentProgress.map((student) => {
     const classId = source.students.find((studentRow) => studentRow.id === student.id)?.class_id ?? null;
@@ -416,7 +447,7 @@ function buildReportStudents(source: Awaited<ReturnType<typeof loadTeacherAnalyt
 
 function buildReportModuleSummaries(source: Awaited<ReturnType<typeof loadTeacherAnalyticsSource>>): TeacherReportModuleSummary[] {
   const quizById = new Map(source.quizzes.map((quiz) => [quiz.id, quiz]));
-  const moduleRows = buildClassModules(source.modules, source.lessons, source.progressRows, source.students.length);
+  const moduleRows = buildClassModules(source.modules, source.lessons, source.progressRows, source.students);
 
   return moduleRows.map((moduleItem) => {
     const moduleAttempts = source.quizAttempts.filter((attempt) => quizById.get(attempt.quiz_id)?.module_id === moduleItem.id);
@@ -426,9 +457,7 @@ function buildReportModuleSummaries(source: Awaited<ReturnType<typeof loadTeache
       id: moduleItem.id,
       title: moduleItem.title,
       completionRate: moduleItem.completionRate,
-      averageQuizScore: scoredAttempts.length
-        ? Math.round(scoredAttempts.reduce((total, attempt) => total + Number(attempt.score ?? 0), 0) / scoredAttempts.length)
-        : 0,
+      averageQuizScore: averageBestQuizScore(scoredAttempts),
       attemptsCount: moduleAttempts.length,
     };
   });
@@ -438,22 +467,17 @@ function buildClassModules(
   modules: ModuleRow[],
   lessons: LessonRow[],
   progressRows: ModuleProgressRow[],
-  studentsCount: number,
+  students: StudentRow[],
 ): TeacherClassModule[] {
   const lessonCountByModule = countBy(lessons, (lesson) => lesson.module_id);
 
   return modules.map((moduleItem) => {
-    const moduleProgress = progressRows.filter((progress) => progress.module_id === moduleItem.id);
-    const completedCount = moduleProgress.filter(
-      (progress) => progress.status === 'completed' || progress.completed_at || progress.progress_percent === 100,
-    ).length;
-
     return {
       id: moduleItem.id,
       title: moduleItem.title,
       status: moduleItem.status,
       lessonsCount: lessonCountByModule.get(moduleItem.id) ?? 0,
-      completionRate: studentsCount ? Math.round((completedCount / studentsCount) * 100) : 0,
+      completionRate: calculateModuleAverageProgress(moduleItem.id, students, progressRows),
     };
   });
 }

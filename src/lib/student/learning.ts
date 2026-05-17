@@ -41,8 +41,19 @@ export type StudentQuiz = {
   description: string | null;
   passingScore: number;
   maxAttempts: number;
+  allowRetake: boolean;
   timeLimitSeconds: number | null;
   questions: QuizQuestion[];
+};
+
+export type StudentQuizAttemptInfo = {
+  attemptsCount: number;
+  maxAttempts: number;
+  allowRetake: boolean;
+  canAttempt: boolean;
+  bestScore: number | null;
+  latestScore: number | null;
+  latestAttemptId: string | null;
 };
 
 export type QuizReviewQuestion = {
@@ -65,6 +76,7 @@ export type ModuleLearningData = {
 export type QuizLearningData = {
   module: StudentModule | null;
   quiz: StudentQuiz | null;
+  attemptInfo: StudentQuizAttemptInfo | null;
   isDemo: boolean;
 };
 
@@ -81,6 +93,7 @@ export type QuizResultData = {
   earnedPoints: number;
   elapsedSeconds: number;
   passed: boolean;
+  bestScore: number | null;
   reviewQuestions: QuizReviewQuestion[];
   available: boolean;
 };
@@ -110,6 +123,7 @@ type QuizRow = {
   description: string | null;
   passing_score: number | null;
   max_attempts: number | null;
+  allow_retake?: boolean | null;
   time_limit_seconds: number | null;
 };
 
@@ -137,6 +151,7 @@ type QuizAttemptRow = {
   correct_answers: number | null;
   started_at: string | null;
   submitted_at: string | null;
+  created_at?: string | null;
 };
 
 const demoLessons: StudentLesson[] = [
@@ -164,6 +179,7 @@ const demoQuiz: StudentQuiz = {
   description: 'Uji pemahaman awal tentang makna tawazun dalam Islam Wasathiyah.',
   passingScore: 70,
   maxAttempts: 3,
+  allowRetake: true,
   timeLimitSeconds: 600,
   questions: [
     {
@@ -254,18 +270,31 @@ export async function getQuizLearningData(moduleId: string, studentId?: string):
   const moduleItem = await findStudentModule(moduleId, studentId);
 
   if (!moduleItem) {
-    return { module: null, quiz: null, isDemo: !isSupabaseConfigured };
+    return { module: null, quiz: null, attemptInfo: null, isDemo: !isSupabaseConfigured };
   }
 
   if (!isSupabaseConfigured) {
-    return { module: moduleItem, quiz: demoQuizForModule(moduleItem), isDemo: true };
+    return {
+      module: moduleItem,
+      quiz: demoQuizForModule(moduleItem),
+      attemptInfo: {
+        attemptsCount: 0,
+        maxAttempts: demoQuiz.maxAttempts,
+        allowRetake: true,
+        canAttempt: true,
+        bestScore: null,
+        latestScore: null,
+        latestAttemptId: null,
+      },
+      isDemo: true,
+    };
   }
 
   try {
     const supabase = await createClient();
     const { data: quizRows, error: quizError } = await supabase
       .from('quizzes')
-      .select('id, module_id, title, description, passing_score, max_attempts, time_limit_seconds')
+      .select('id, module_id, title, description, passing_score, max_attempts, allow_retake, time_limit_seconds')
       .eq('module_id', moduleItem.id)
       .eq('is_published', true)
       .order('created_at', { ascending: true })
@@ -274,7 +303,7 @@ export async function getQuizLearningData(moduleId: string, studentId?: string):
     if (quizError) throw quizError;
 
     const quizRow = ((quizRows ?? []) as QuizRow[])[0];
-    if (!quizRow) return { module: moduleItem, quiz: null, isDemo: false };
+    if (!quizRow) return { module: moduleItem, quiz: null, attemptInfo: null, isDemo: false };
 
     const { data: questionRows, error: questionError } = await supabase
       .from('quiz_questions')
@@ -284,6 +313,26 @@ export async function getQuizLearningData(moduleId: string, studentId?: string):
 
     if (questionError) throw questionError;
 
+    const maxAttempts = Math.max(quizRow.max_attempts ?? 3, 1);
+    const allowRetake = maxAttempts > 1 && Boolean(quizRow.allow_retake ?? true);
+    const { data: attemptRows, error: attemptError } = studentId
+      ? await supabase
+          .from('quiz_attempts')
+          .select('id, score, submitted_at, created_at')
+          .eq('student_id', studentId)
+          .eq('quiz_id', quizRow.id)
+          .order('submitted_at', { ascending: false })
+      : { data: [], error: null };
+
+    if (attemptError) throw attemptError;
+
+    const attempts = (attemptRows ?? []) as Pick<QuizAttemptRow, 'id' | 'score' | 'submitted_at' | 'created_at'>[];
+    const attemptsCount = attempts.length;
+    const latestAttempt = attempts[0] ?? null;
+    const bestScore = attempts.length
+      ? Math.max(...attempts.map((attempt) => Math.round(Number(attempt.score ?? 0))))
+      : null;
+
     return {
       module: moduleItem,
       quiz: {
@@ -292,14 +341,24 @@ export async function getQuizLearningData(moduleId: string, studentId?: string):
         title: quizRow.title,
         description: quizRow.description,
         passingScore: quizRow.passing_score ?? 70,
-        maxAttempts: quizRow.max_attempts ?? 3,
+        maxAttempts,
+        allowRetake,
         timeLimitSeconds: quizRow.time_limit_seconds,
         questions: ((questionRows ?? []) as QuizQuestionRow[]).map(mapQuizQuestionRow),
+      },
+      attemptInfo: {
+        attemptsCount,
+        maxAttempts,
+        allowRetake,
+        canAttempt: attemptsCount === 0 || (allowRetake && attemptsCount < maxAttempts),
+        bestScore,
+        latestScore: latestAttempt?.score === null || latestAttempt?.score === undefined ? null : Math.round(Number(latestAttempt.score)),
+        latestAttemptId: latestAttempt?.id ?? null,
       },
       isDemo: false,
     };
   } catch {
-    return { module: moduleItem, quiz: demoQuizForModule(moduleItem), isDemo: true };
+    return { module: moduleItem, quiz: demoQuizForModule(moduleItem), attemptInfo: null, isDemo: true };
   }
 }
 
@@ -332,7 +391,7 @@ export async function getQuizResultData(
 
     let query = supabase
       .from('quiz_attempts')
-      .select('id, quiz_id, answers, score, total_points, earned_points, passed, total_questions, correct_answers, started_at, submitted_at')
+      .select('id, quiz_id, answers, score, total_points, earned_points, passed, total_questions, correct_answers, started_at, submitted_at, created_at')
       .eq('student_id', studentId)
       .in('quiz_id', quizIds)
       .order('submitted_at', { ascending: false })
@@ -366,6 +425,14 @@ export async function getQuizResultData(
       };
     });
     const quizMeta = quizMetaById.get(attempt.quiz_id);
+    const { data: allAttempts } = await supabase
+      .from('quiz_attempts')
+      .select('score')
+      .eq('student_id', studentId)
+      .eq('quiz_id', attempt.quiz_id);
+    const bestScore = allAttempts?.length
+      ? Math.max(...allAttempts.map((row) => Math.round(Number(row.score ?? 0))))
+      : score;
 
     return {
       module: moduleItem,
@@ -380,6 +447,7 @@ export async function getQuizResultData(
       earnedPoints: attempt.earned_points ?? 0,
       elapsedSeconds: calculateElapsedSeconds(attempt.started_at, attempt.submitted_at),
       passed: attempt.passed ?? score >= (quizMeta?.passing_score ?? 70),
+      bestScore,
       reviewQuestions,
       available: true,
     };
@@ -498,6 +566,7 @@ function emptyQuizResult(moduleItem: StudentModule | null): QuizResultData {
     earnedPoints: 0,
     elapsedSeconds: 0,
     passed: false,
+    bestScore: null,
     reviewQuestions: [],
     available: false,
   };

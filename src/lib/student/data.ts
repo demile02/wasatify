@@ -5,6 +5,7 @@ import {
   type ModuleProgressRow,
   type PublishedModuleRow,
 } from '@/lib/modules/status';
+import { getStudentClassTeacherContext } from '@/lib/scope';
 import { createClient, isSupabaseConfigured } from '@/lib/supabase/server';
 import type { Profile, StudentActivity } from '@/lib/types';
 
@@ -75,10 +76,16 @@ export async function getStudentModules(student?: Profile | string): Promise<Stu
 
   try {
     const supabase = await createClient();
+    if (!context.id) return [];
+
+    const scope = await getStudentClassTeacherContext(context.id);
+    if (!scope.teacherId) return [];
+
     const { data, error } = await supabase
       .from('modules')
       .select('id, slug, title, description, cover_image_path, estimated_minutes, order_index')
       .eq('status', 'published')
+      .eq('created_by', scope.teacherId)
       .order('order_index', { ascending: true });
 
     if (error) throw error;
@@ -216,10 +223,19 @@ async function getProfileStats(
 async function getQuizAttemptsCount(supabase: SupabaseServerClient, studentId?: string) {
   if (!studentId) return 0;
 
+  const modules = await getStudentModules(studentId);
+  const moduleIds = modules.map((moduleItem) => moduleItem.id);
+  if (!moduleIds.length) return 0;
+
+  const { data: quizzes } = await supabase.from('quizzes').select('id').in('module_id', moduleIds);
+  const quizIds = (quizzes ?? []).map((quiz) => quiz.id as string);
+  if (!quizIds.length) return 0;
+
   const { count, error } = await supabase
     .from('quiz_attempts')
     .select('id', { count: 'exact', head: true })
-    .eq('student_id', studentId);
+    .eq('student_id', studentId)
+    .in('quiz_id', quizIds);
 
   return error ? 0 : count ?? 0;
 }
@@ -252,24 +268,35 @@ async function getRecentActivities(
   if (!studentId) return [];
 
   const moduleTitleById = new Map(modules.map((moduleItem) => [moduleItem.id, moduleItem.title]));
+  const moduleIds = modules.map((moduleItem) => moduleItem.id);
+  if (!moduleIds.length) return [];
+
+  const { data: quizRows } = await supabase.from('quizzes').select('id, title, module_id').in('module_id', moduleIds);
+  const scopedQuizIds = ((quizRows ?? []) as QuizTitleRow[]).map((quiz) => quiz.id);
+
   const [attemptsResult, reflectionsResult, progressResult] = await Promise.all([
-    supabase
-      .from('quiz_attempts')
-      .select('id, quiz_id, score, submitted_at, created_at')
-      .eq('student_id', studentId)
-      .order('submitted_at', { ascending: false, nullsFirst: false })
-      .order('created_at', { ascending: false })
-      .limit(3),
+    scopedQuizIds.length
+      ? supabase
+          .from('quiz_attempts')
+          .select('id, quiz_id, score, submitted_at, created_at')
+          .eq('student_id', studentId)
+          .in('quiz_id', scopedQuizIds)
+          .order('submitted_at', { ascending: false, nullsFirst: false })
+          .order('created_at', { ascending: false })
+          .limit(3)
+      : Promise.resolve({ data: [], error: null }),
     supabase
       .from('reflections')
       .select('id, module_id, created_at')
       .eq('student_id', studentId)
+      .in('module_id', moduleIds)
       .order('created_at', { ascending: false })
       .limit(3),
     supabase
       .from('module_progress')
       .select('id, module_id, status, progress_percent, completed_at, updated_at, created_at')
       .eq('student_id', studentId)
+      .in('module_id', moduleIds)
       .order('updated_at', { ascending: false })
       .limit(3),
   ]);
@@ -277,10 +304,7 @@ async function getRecentActivities(
   const attempts = attemptsResult.error ? [] : ((attemptsResult.data ?? []) as QuizAttemptActivityRow[]);
   const reflections = reflectionsResult.error ? [] : ((reflectionsResult.data ?? []) as ReflectionActivityRow[]);
   const progressRows = progressResult.error ? [] : ((progressResult.data ?? []) as ModuleProgressActivityRow[]);
-  const quizTitleById = await getQuizTitlesById(
-    supabase,
-    attempts.map((attempt) => attempt.quiz_id),
-  );
+  const quizTitleById = new Map(((quizRows ?? []) as QuizTitleRow[]).map((quiz) => [quiz.id, quiz]));
   const activityItems: Array<StudentActivity & { sortAt: string }> = [];
 
   for (const attempt of attempts) {
@@ -322,26 +346,6 @@ async function getRecentActivities(
       time: activity.time,
       type: activity.type,
     }));
-}
-
-async function getQuizTitlesById(supabase: SupabaseServerClient, quizIds: string[]) {
-  const uniqueQuizIds = Array.from(new Set(quizIds.filter(Boolean)));
-  const quizTitleById = new Map<string, QuizTitleRow>();
-
-  if (!uniqueQuizIds.length) return quizTitleById;
-
-  const { data, error } = await supabase
-    .from('quizzes')
-    .select('id, title, module_id')
-    .in('id', uniqueQuizIds);
-
-  if (error) return quizTitleById;
-
-  for (const quiz of (data ?? []) as QuizTitleRow[]) {
-    quizTitleById.set(quiz.id, quiz);
-  }
-
-  return quizTitleById;
 }
 
 function formatRelativeTime(value?: string | null) {

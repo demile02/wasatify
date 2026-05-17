@@ -67,6 +67,8 @@ Catatan:
 - `storage.sql` membuat bucket `module-covers`, `module-media`, dan `media-assets`.
 - `seed.sql` menambahkan data demo modul, lesson Tawazun, quiz, achievement, class, media, dan pengumuman.
 - Detail storage ada di `supabase/storage.md`.
+- Data modul siswa di-scope berdasarkan kelas: siswa hanya melihat modul `published` yang dibuat oleh guru kelasnya (`modules.created_by = classes.teacher_id`). Progress, kuis, refleksi, dan analytics guru juga dihitung hanya dari siswa kelas guru dan modul milik guru tersebut.
+- Jika database demo lama sudah tercampur dengan progress modul global/demo, jangan migrasi otomatis tanpa backup. Untuk reset demo bersih, backup data penting lalu hapus atau truncate data progress/attempt/reflection terkait testing sebelum rerun seed sesuai urutan di atas.
 
 Kolom penting yang harus ada:
 

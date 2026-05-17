@@ -46,7 +46,7 @@ export default async function StudentDashboardPage() {
           className="mt-8"
           icon={BookOpen}
           title="Belum ada modul tersedia"
-          description="Modul published dari Supabase akan tampil di sini setelah guru atau admin menambahkannya."
+          description="Kamu belum tergabung dalam kelas, atau guru kelasmu belum mempublikasikan modul."
         />
       ) : (
         <>

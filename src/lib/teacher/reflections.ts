@@ -87,25 +87,28 @@ export async function getTeacherReflectionsData(profile: Profile): Promise<Teach
 
     const students = (studentRows ?? []) as StudentRow[];
     const studentIds = students.map((student) => student.id);
+    let moduleQuery = supabase.from('modules').select('id, title').eq('status', 'published');
+    if (profile.role === 'teacher') moduleQuery = moduleQuery.eq('created_by', profile.id);
+    const { data: ownedModuleRows, error: ownedModuleError } = await moduleQuery;
+    if (ownedModuleError) throw ownedModuleError;
+
+    const ownedModules = (ownedModuleRows ?? []) as ModuleRow[];
+    const ownedModuleIds = ownedModules.map((moduleItem) => moduleItem.id);
     const { data: reflectionRows, error: reflectionError } = studentIds.length
       ? await supabase
           .from('reflections')
           .select('id, student_id, module_id, reflection_text, action_plan, teacher_note, reviewed_at, created_at')
           .in('student_id', studentIds)
+          .in('module_id', ownedModuleIds.length ? ownedModuleIds : ['00000000-0000-0000-0000-000000000000'])
           .order('created_at', { ascending: false })
       : { data: [], error: null };
 
     if (reflectionError) throw reflectionError;
 
     const reflections = (reflectionRows ?? []) as ReflectionRow[];
-    const moduleIds = [...new Set(reflections.map((reflection) => reflection.module_id))];
-    const { data: moduleRows } = moduleIds.length
-      ? await supabase.from('modules').select('id, title').in('id', moduleIds)
-      : { data: [] };
-
     const classById = new Map(classes.map((classItem) => [classItem.id, classItem]));
     const studentById = new Map(students.map((student) => [student.id, student]));
-    const moduleById = new Map(((moduleRows ?? []) as ModuleRow[]).map((moduleItem) => [moduleItem.id, moduleItem]));
+    const moduleById = new Map(ownedModules.map((moduleItem) => [moduleItem.id, moduleItem]));
     const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
     const items = reflections.map((reflection) => {
       const student = studentById.get(reflection.student_id);

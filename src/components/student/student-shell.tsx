@@ -18,7 +18,7 @@ import {
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { AppLogo } from '@/components/shared/app-logo';
-import { UserAvatar } from '@/components/shared/user-avatar';
+import { ProfileMenu } from '@/components/shared/profile-menu';
 import { Button } from '@/components/ui/button';
 import { studentNavigation } from '@/lib/constants/navigation';
 import type { Profile } from '@/lib/types';
@@ -111,9 +111,7 @@ export function StudentShell({ profile, children }: StudentShellProps) {
               <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-gold" />
             </button>
 
-            <div className="rounded-2xl border border-border bg-white px-2 py-1.5 shadow-sm">
-              <UserAvatar name={profile.full_name} imageUrl={profile.avatar_url} roleLabel="Siswa" />
-            </div>
+            <ProfileMenu profile={profile} roleLabel="Siswa" profileHref="/student/profile" />
           </div>
 
           <div className="border-t border-primary/10 px-5 pb-3 md:hidden">

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
+import { getStudentAvailableModuleIds } from '@/lib/scope';
 import { normalizeCorrectAnswer } from '@/lib/student/learning';
 import { createClient, isSupabaseConfigured } from '@/lib/supabase/server';
 
@@ -50,12 +51,20 @@ type QuizRow = {
   id: string;
   module_id: string;
   passing_score: number | null;
+  max_attempts: number | null;
+  allow_retake: boolean | null;
 };
 
 type QuestionRow = {
   id: string;
   correct_answer: unknown;
   points: number | null;
+};
+
+type ExistingAttemptRow = {
+  id: string;
+  score: number | null;
+  passed: boolean | null;
 };
 
 type ModuleProgressRow = {
@@ -112,6 +121,10 @@ export async function submitReflectionAction(input: SubmitReflectionInput): Prom
 
     if (!user) {
       return { ok: false, error: 'Sesi refleksi belum aktif. Silakan masuk kembali.' };
+    }
+
+    if (!(await canStudentAccessModule(user.id, moduleId))) {
+      return { ok: false, error: 'Modul ini tidak tersedia untuk kelasmu.' };
     }
 
     const now = new Date().toISOString();
@@ -248,6 +261,10 @@ export async function markLessonCompleteAction(
       return { ok: false, error: 'Sesi belajar belum aktif. Silakan masuk kembali.' };
     }
 
+    if (!(await canStudentAccessModule(user.id, normalizedModuleId))) {
+      return { ok: false, error: 'Modul ini tidak tersedia untuk kelasmu.' };
+    }
+
     const { data: lesson, error: lessonError } = await supabase
       .from('lessons')
       .select('id')
@@ -357,15 +374,37 @@ export async function submitQuizAttemptAction(
       return { ok: false, error: 'Sesi kuis belum aktif. Silakan masuk kembali.' };
     }
 
+    if (!(await canStudentAccessModule(user.id, payload.moduleId))) {
+      return { ok: false, error: 'Modul ini tidak tersedia untuk kelasmu.' };
+    }
+
     const { data: quiz, error: quizError } = await supabase
       .from('quizzes')
-      .select('id, module_id, passing_score')
+      .select('id, module_id, passing_score, max_attempts, allow_retake')
       .eq('id', payload.quizId)
       .maybeSingle<QuizRow>();
 
     if (quizError) throw quizError;
     if (!quiz) {
       return { ok: false, error: 'Kuis tidak ditemukan.' };
+    }
+    if (quiz.module_id !== payload.moduleId) {
+      return { ok: false, error: 'Kuis tidak sesuai dengan modul.' };
+    }
+
+    const maxAttempts = Math.max(quiz.max_attempts ?? 3, 1);
+    const allowRetake = maxAttempts > 1 && Boolean(quiz.allow_retake);
+    const { data: existingAttempts, error: existingAttemptsError } = await supabase
+      .from('quiz_attempts')
+      .select('id, score, passed')
+      .eq('quiz_id', quiz.id)
+      .eq('student_id', user.id);
+
+    if (existingAttemptsError) throw existingAttemptsError;
+
+    const previousAttempts = (existingAttempts ?? []) as ExistingAttemptRow[];
+    if (previousAttempts.length >= maxAttempts || (!allowRetake && previousAttempts.length >= 1)) {
+      return { ok: false, error: 'Kesempatan kuis sudah habis.' };
     }
 
     const { data: questionRows, error: questionError } = await supabase
@@ -402,6 +441,7 @@ export async function submitQuizAttemptAction(
     const score = totalPoints > 0 ? Math.round((earnedPoints / totalPoints) * 100) : 0;
     const wrongAnswers = Math.max(totalQuestions - correctAnswers, 0);
     const passed = score >= (quiz.passing_score ?? 70);
+    const alreadyPassed = previousAttempts.some((attempt) => attempt.passed || Number(attempt.score ?? 0) >= (quiz.passing_score ?? 70));
     const submittedAt = new Date();
     const startedAt = parseStartedAt(payload.startedAt, submittedAt);
     const elapsedSeconds = Math.max(
@@ -463,11 +503,13 @@ export async function submitQuizAttemptAction(
 
       if (moduleProgressError) throw moduleProgressError;
 
-      const currentXp = existingProfileResult.data?.xp ?? 0;
-      await supabase
-        .from('profiles')
-        .update({ xp: currentXp + 50 })
-        .eq('id', user.id);
+      if (!alreadyPassed) {
+        const currentXp = existingProfileResult.data?.xp ?? 0;
+        await supabase
+          .from('profiles')
+          .update({ xp: currentXp + 50 })
+          .eq('id', user.id);
+      }
     }
 
     revalidatePath(`/student/modules/${quiz.module_id}`);
@@ -498,6 +540,11 @@ export async function submitQuizAttemptAction(
 function parseStartedAt(startedAt: string, fallback: Date) {
   const parsed = new Date(startedAt);
   return Number.isNaN(parsed.getTime()) ? fallback : parsed;
+}
+
+async function canStudentAccessModule(studentId: string, moduleId: string) {
+  const moduleIds = await getStudentAvailableModuleIds(studentId);
+  return moduleIds.includes(moduleId);
 }
 
 function buildDemoQuizResult(input: SubmitQuizAttemptInput): SubmitQuizAttemptResult {

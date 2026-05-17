@@ -1,4 +1,8 @@
 import { createClient, isSupabaseConfigured } from '@/lib/supabase/server';
+import {
+  calculateClassProgress,
+  calculateModuleAverageProgress,
+} from '@/lib/teacher/progress-calculation';
 import type { Profile } from '@/lib/types';
 
 export type TeacherModuleStatus = 'published' | 'draft' | 'archived';
@@ -232,18 +236,31 @@ export async function getTeacherDashboardData(profile: Profile): Promise<Teacher
 
   try {
     const supabase = await createClient();
+    let classQuery = supabase
+      .from('classes')
+      .select('id, name, grade_level')
+      .order('created_at', { ascending: false });
+    let moduleQuery = supabase
+      .from('modules')
+      .select('id, slug, title, description, class_id, cover_image_path, tags, status, estimated_minutes, updated_at')
+      .eq('status', 'published')
+      .order('updated_at', { ascending: false });
+    let announcementQuery = supabase
+      .from('announcements')
+      .select('id, title, content, priority, published_at, created_at')
+      .order('created_at', { ascending: false })
+      .limit(4);
+
+    if (profile.role === 'teacher') {
+      classQuery = classQuery.eq('teacher_id', profile.id);
+      moduleQuery = moduleQuery.eq('created_by', profile.id);
+      announcementQuery = announcementQuery.eq('teacher_id', profile.id);
+    }
+
     const [classesResult, modulesResult, announcementsResult] = await Promise.all([
-      supabase.from('classes').select('id, name, grade_level').eq('teacher_id', profile.id).order('created_at', { ascending: false }),
-      supabase
-        .from('modules')
-        .select('id, slug, title, description, class_id, cover_image_path, tags, status, estimated_minutes, updated_at')
-        .order('updated_at', { ascending: false }),
-      supabase
-        .from('announcements')
-        .select('id, title, content, priority, published_at, created_at')
-        .eq('teacher_id', profile.id)
-        .order('created_at', { ascending: false })
-        .limit(4),
+      classQuery,
+      moduleQuery,
+      announcementQuery,
     ]);
 
     if (classesResult.error || modulesResult.error || announcementsResult.error) {
@@ -306,10 +323,7 @@ export async function getTeacherDashboardData(profile: Profile): Promise<Teacher
     const quizById = new Map(quizzes.map((quiz) => [quiz.id, quiz]));
     const moduleById = new Map(modules.map((moduleItem) => [moduleItem.id, moduleItem]));
     const studentsByClass = groupBy(students, (student) => student.class_id ?? 'none');
-    const progressByStudent = groupBy(progressRows, (progress) => progress.student_id);
-    const completionRate = progressRows.length
-      ? Math.round(progressRows.reduce((total, progress) => total + clampProgress(progress.progress_percent ?? 0), 0) / progressRows.length)
-      : 0;
+    const completionRate = calculateClassProgress(students, moduleIds, progressRows);
 
     return {
       classesCount: classes.length,
@@ -318,19 +332,12 @@ export async function getTeacherDashboardData(profile: Profile): Promise<Teacher
       completionRate,
       classProgress: classes.map((classItem) => {
         const classStudents = studentsByClass.get(classItem.id) ?? [];
-        const classProgressRows = classStudents.flatMap((student) => progressByStudent.get(student.id) ?? []);
-        const progress = classProgressRows.length
-          ? Math.round(
-              classProgressRows.reduce((total, progressRow) => total + clampProgress(progressRow.progress_percent ?? 0), 0) /
-                classProgressRows.length,
-            )
-          : 0;
 
         return {
           id: classItem.id,
           name: classItem.name,
           studentsCount: classStudents.length,
-          progress,
+          progress: calculateClassProgress(classStudents, moduleIds, progressRows),
         };
       }),
       activities: buildActivities({
@@ -350,7 +357,7 @@ export async function getTeacherDashboardData(profile: Profile): Promise<Teacher
         return {
           id: moduleItem.id,
           title: moduleItem.title,
-          completionRate: students.length ? Math.round((completedCount / students.length) * 100) : 0,
+          completionRate: calculateModuleAverageProgress(moduleItem.id, students, progressRows),
           completedCount,
           studentsCount: students.length,
         };
@@ -495,9 +502,6 @@ function countBy<T>(items: T[], keyFn: (item: T) => string) {
   return counts;
 }
 
-function clampProgress(value: number) {
-  return Math.min(Math.max(Math.round(value), 0), 100);
-}
 
 function formatDuration(totalMinutes: number) {
   if (totalMinutes < 60) return `${totalMinutes} menit`;
