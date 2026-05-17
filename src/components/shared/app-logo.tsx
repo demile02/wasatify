@@ -6,6 +6,7 @@ type AppLogoProps = {
   className?: string;
   href?: string;
   markOnly?: boolean;
+  variant?: 'full' | 'horizontal' | 'compact';
   size?: 'sm' | 'md' | 'lg';
   theme?: 'light' | 'dark';
 };
@@ -32,32 +33,39 @@ export function AppLogo({
   className,
   href,
   markOnly = false,
+  variant = 'full',
   size = 'md',
   theme = 'light',
 }: AppLogoProps) {
+  const resolvedVariant = markOnly ? 'compact' : variant;
+  const showText = resolvedVariant !== 'compact';
+  const showTagline = resolvedVariant === 'full';
+
   const content = (
-    <div className={cn('inline-flex items-center gap-3', className)}>
+    <div className={cn('inline-flex items-center gap-2.5 align-middle sm:gap-3', className)}>
       <LogoMark className={sizeClass[size].mark} />
-      {!markOnly && (
-        <div className="leading-none">
+      {showText && (
+        <div className="min-w-0 leading-none">
           <p
             className={cn(
-              'font-extrabold tracking-wide',
+              'truncate font-extrabold leading-none tracking-wide',
               sizeClass[size].title,
               theme === 'dark' ? 'text-white' : 'text-ink',
             )}
           >
             WASATIFY
           </p>
-          <p
-            className={cn(
-              'mt-1 font-medium',
-              sizeClass[size].subtitle,
-              theme === 'dark' ? 'text-white/72' : 'text-muted-foreground',
-            )}
-          >
-            Belajar Islam Wasathiyah
-          </p>
+          {showTagline && (
+            <p
+              className={cn(
+                'mt-0.5 truncate font-medium leading-tight',
+                sizeClass[size].subtitle,
+                theme === 'dark' ? 'text-white/72' : 'text-muted-foreground',
+              )}
+            >
+              Belajar Islam Wasathiyah
+            </p>
+          )}
         </div>
       )}
     </div>

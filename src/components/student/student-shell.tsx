@@ -105,7 +105,7 @@ export function StudentShell({ profile, children }: StudentShellProps) {
         <header className="sticky top-0 z-30 border-b border-primary/10 bg-background/86 backdrop-blur-xl">
           <div className="flex min-h-16 items-center gap-3 px-5 py-3 sm:px-8 md:min-h-20">
             <div className="shrink-0 lg:hidden">
-              <AppLogo href="/" size="sm" markOnly />
+              <AppLogo href="/" size="sm" variant="horizontal" />
             </div>
 
             <div className="hidden min-w-0 lg:block">

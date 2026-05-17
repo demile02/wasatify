@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Eye, EyeOff, Lock, Mail } from 'lucide-react';
+import { Eye, EyeOff, Lock } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { z } from 'zod';
 import { AuthAlert } from '@/components/auth/auth-alert';
 import { AuthInput } from '@/components/auth/auth-fields';
+import { EmailInputWithSuggestions } from '@/components/auth/email-input-with-suggestions';
 import { SocialAuthButtons } from '@/components/auth/social-auth-buttons';
 import { Button } from '@/components/ui/button';
 import { getRoleDashboardPath, isAppRole } from '@/lib/auth/roles';
@@ -38,6 +39,8 @@ export function LoginForm({ nextPath, confirmed = false }: LoginFormProps) {
   const {
     register,
     handleSubmit,
+    setValue,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -47,6 +50,8 @@ export function LoginForm({ nextPath, confirmed = false }: LoginFormProps) {
       remember: false,
     },
   });
+  const emailRegister = register('email');
+  const emailValue = watch('email');
 
   useEffect(() => {
     if (confirmed) {
@@ -131,14 +136,16 @@ export function LoginForm({ nextPath, confirmed = false }: LoginFormProps) {
         {confirmed && <AuthAlert type="success" message="Email berhasil dikonfirmasi. Silakan login." />}
         {error && <AuthAlert type="error" message={error} />}
 
-        <AuthInput
+        <EmailInputWithSuggestions
           label="Email"
-          type="email"
+          value={emailValue}
+          onValueChange={(nextValue) => setValue('email', nextValue, { shouldDirty: true, shouldValidate: false })}
+          name={emailRegister.name}
+          inputRef={emailRegister.ref}
+          onBlur={emailRegister.onBlur}
           placeholder="nama@email.com"
           autoComplete="email"
-          leftIcon={<Mail className="h-4 w-4" />}
           error={errors.email?.message}
-          {...register('email')}
         />
 
         <div className="relative">
