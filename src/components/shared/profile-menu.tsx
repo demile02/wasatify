@@ -49,13 +49,19 @@ export function ProfileMenu({ profile, roleLabel, profileHref }: ProfileMenuProp
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="rounded-2xl border border-border bg-white px-2 py-1.5 text-left shadow-sm transition hover:bg-mint focus:outline-none focus:ring-2 focus:ring-primary/30"
+          className="grid h-10 w-10 place-items-center rounded-xl border border-border bg-white p-0 text-left shadow-sm transition hover:bg-mint focus:outline-none focus:ring-2 focus:ring-primary/30 md:h-auto md:w-auto md:rounded-2xl md:px-2 md:py-1.5"
           aria-label="Buka menu profil"
         >
-          <UserAvatar name={profile.full_name} imageUrl={profile.avatar_url} roleLabel={roleLabel} />
+          <UserAvatar
+            name={profile.full_name}
+            imageUrl={profile.avatar_url}
+            roleLabel={roleLabel}
+            size="sm"
+            textClassName="hidden md:block"
+          />
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-64 rounded-2xl p-2">
+      <DropdownMenuContent align="end" className="z-[80] w-64 rounded-2xl border border-border bg-white p-2 shadow-soft">
         <DropdownMenuLabel className="px-3 py-2">
           <span className="block truncate text-sm font-bold text-ink">{profile.full_name}</span>
           <span className="block truncate text-xs font-normal text-muted-foreground">{profile.email ?? roleLabel}</span>

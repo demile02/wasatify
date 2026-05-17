@@ -87,8 +87,8 @@ export function LessonViewer({ moduleItem, lessons, completedLessonIds }: Lesson
   }
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[1fr_0.38fr]">
-      <SectionCard className="overflow-hidden">
+    <div className="grid min-w-0 gap-6 xl:grid-cols-[1fr_0.38fr]">
+      <SectionCard className="min-w-0 overflow-hidden">
         <div className="flex flex-col gap-4 border-b border-border pb-5 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <Button asChild variant="ghost" size="sm" className="-ml-3 mb-3">
@@ -126,7 +126,7 @@ export function LessonViewer({ moduleItem, lessons, completedLessonIds }: Lesson
 
         <div className="mt-6 min-h-80">
           {activeTab === 'material' && (
-            <div className="rounded-2xl bg-mint/45 p-5 sm:p-6">
+            <div className="app-readable rounded-2xl bg-mint/45 p-5 sm:p-6">
               {materialParagraphs.length ? (
                 <div className="space-y-5 text-base leading-8 text-muted-foreground">
                   {materialParagraphs.map((paragraph) => (
@@ -265,8 +265,8 @@ function MediaPanel({
 
   if (type === 'video') {
     return (
-      <div className="overflow-hidden rounded-2xl border border-border bg-slate-950 shadow-card">
-        <video src={url} controls className="aspect-video w-full" />
+      <div className="aspect-video w-full max-w-full overflow-hidden rounded-2xl border border-border bg-slate-950 shadow-card">
+        <video src={url} controls className="h-full w-full object-contain" />
       </div>
     );
   }

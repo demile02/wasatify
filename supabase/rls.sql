@@ -487,6 +487,16 @@ on public.module_progress for delete
 to authenticated
 using (public.is_student() and student_id = auth.uid());
 
+drop policy if exists "module_progress_delete_teacher_class" on public.module_progress;
+create policy "module_progress_delete_teacher_class"
+on public.module_progress for delete
+to authenticated
+using (
+  public.is_teacher()
+  and public.teacher_can_read_student(student_id)
+  and public.teacher_owns_module(module_id)
+);
+
 create policy "lesson_progress_admin_all"
 on public.lesson_progress for all
 to authenticated
@@ -527,6 +537,16 @@ on public.lesson_progress for delete
 to authenticated
 using (public.is_student() and student_id = auth.uid());
 
+drop policy if exists "lesson_progress_delete_teacher_class" on public.lesson_progress;
+create policy "lesson_progress_delete_teacher_class"
+on public.lesson_progress for delete
+to authenticated
+using (
+  public.is_teacher()
+  and public.teacher_can_read_student(student_id)
+  and public.teacher_owns_module(module_id)
+);
+
 create policy "quiz_attempts_admin_all"
 on public.quiz_attempts for all
 to authenticated
@@ -565,6 +585,22 @@ create policy "quiz_attempts_delete_own"
 on public.quiz_attempts for delete
 to authenticated
 using (public.is_student() and student_id = auth.uid());
+
+drop policy if exists "quiz_attempts_delete_teacher_class" on public.quiz_attempts;
+create policy "quiz_attempts_delete_teacher_class"
+on public.quiz_attempts for delete
+to authenticated
+using (
+  public.is_teacher()
+  and public.teacher_can_read_student(student_id)
+  and exists (
+    select 1
+    from public.quizzes q
+    join public.modules m on m.id = q.module_id
+    where q.id = quiz_attempts.quiz_id
+      and coalesce(m.created_by, m.teacher_id) = auth.uid()
+  )
+);
 
 create policy "reflections_admin_all"
 on public.reflections for all
@@ -609,6 +645,16 @@ create policy "reflections_delete_own"
 on public.reflections for delete
 to authenticated
 using (public.is_student() and student_id = auth.uid());
+
+drop policy if exists "reflections_delete_teacher_class" on public.reflections;
+create policy "reflections_delete_teacher_class"
+on public.reflections for delete
+to authenticated
+using (
+  public.is_teacher()
+  and public.teacher_can_read_student(student_id)
+  and public.teacher_owns_module(module_id)
+);
 
 create policy "achievements_admin_all"
 on public.achievements for all

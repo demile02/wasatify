@@ -6,6 +6,7 @@ type UserAvatarProps = {
   imageUrl?: string | null;
   roleLabel?: string;
   className?: string;
+  textClassName?: string;
   size?: 'sm' | 'md' | 'lg';
 };
 
@@ -15,7 +16,7 @@ const avatarSizeClass = {
   lg: 'h-14 w-14 text-base',
 };
 
-export function UserAvatar({ name, imageUrl, roleLabel, className, size = 'md' }: UserAvatarProps) {
+export function UserAvatar({ name, imageUrl, roleLabel, className, textClassName, size = 'md' }: UserAvatarProps) {
   const initials = getInitials(name);
 
   return (
@@ -31,7 +32,7 @@ export function UserAvatar({ name, imageUrl, roleLabel, className, size = 'md' }
         <AvatarFallback className="bg-mint font-bold text-primary">{initials}</AvatarFallback>
       </Avatar>
       {(name || roleLabel) && (
-        <span className="min-w-0 leading-tight">
+        <span className={cn('min-w-0 leading-tight', textClassName)}>
           {name && <span className="block truncate text-sm font-semibold text-foreground">{name}</span>}
           {roleLabel && <span className="block truncate text-xs text-muted-foreground">{roleLabel}</span>}
         </span>

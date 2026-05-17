@@ -15,12 +15,23 @@ export type DeleteTeacherClassResult = {
   error?: string;
 };
 
+export type ResetStudentProgressResult = {
+  ok: boolean;
+  error?: string;
+};
+
 const saveTeacherClassSchema = z.object({
   classId: z.string().optional(),
   name: z.string().trim().min(2, 'Nama kelas minimal 2 karakter.'),
   gradeLevel: z.string().trim().max(50, 'Tingkat maksimal 50 karakter.').optional(),
   academicYear: z.string().trim().max(20, 'Tahun ajaran maksimal 20 karakter.').optional(),
   description: z.string().trim().max(300, 'Deskripsi maksimal 300 karakter.').optional(),
+});
+
+const resetStudentProgressSchema = z.object({
+  classId: z.string().min(1, 'Kelas tidak valid.'),
+  studentId: z.string().min(1, 'Siswa tidak valid.'),
+  moduleId: z.string().min(1).optional(),
 });
 
 export async function saveTeacherClassAction(input: {
@@ -121,6 +132,127 @@ export async function deleteTeacherClassAction(classId: string): Promise<DeleteT
     return {
       ok: false,
       error: error instanceof Error ? error.message : 'Kelas belum berhasil dihapus.',
+    };
+  }
+}
+
+export async function resetStudentProgressAction(input: {
+  classId: string;
+  studentId: string;
+  moduleId?: string;
+}): Promise<ResetStudentProgressResult> {
+  const parsed = resetStudentProgressSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? 'Data reset tidak valid.' };
+  }
+
+  if (!isSupabaseConfigured) {
+    return { ok: true };
+  }
+
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) return { ok: false, error: 'Sesi guru belum aktif. Silakan masuk kembali.' };
+
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .maybeSingle<{ role: string | null }>();
+
+    if (profileError) throw profileError;
+
+    const { data: classRow, error: classError } = await supabase
+      .from('classes')
+      .select('id, teacher_id')
+      .eq('id', parsed.data.classId)
+      .maybeSingle<{ id: string; teacher_id: string | null }>();
+
+    if (classError) throw classError;
+    if (!classRow) return { ok: false, error: 'Kelas tidak ditemukan.' };
+    if (profile?.role !== 'admin' && classRow.teacher_id !== user.id) {
+      return { ok: false, error: 'Kamu tidak memiliki akses ke kelas ini.' };
+    }
+
+    const { data: student, error: studentError } = await supabase
+      .from('profiles')
+      .select('id, role, class_id')
+      .eq('id', parsed.data.studentId)
+      .maybeSingle<{ id: string; role: string | null; class_id: string | null }>();
+
+    if (studentError) throw studentError;
+    if (!student || student.role !== 'student' || student.class_id !== parsed.data.classId) {
+      return { ok: false, error: 'Siswa tidak ditemukan di kelas ini.' };
+    }
+
+    const moduleOwnerId = classRow.teacher_id ?? user.id;
+    let moduleQuery = supabase.from('modules').select('id').eq('created_by', moduleOwnerId);
+
+    if (parsed.data.moduleId) {
+      moduleQuery = moduleQuery.eq('id', parsed.data.moduleId);
+    }
+
+    const { data: moduleRows, error: moduleError } = await moduleQuery;
+    if (moduleError) throw moduleError;
+
+    const moduleIds = ((moduleRows ?? []) as { id: string }[]).map((moduleItem) => moduleItem.id);
+    if (!moduleIds.length) {
+      return { ok: false, error: parsed.data.moduleId ? 'Modul tidak ditemukan.' : 'Guru belum memiliki modul untuk direset.' };
+    }
+
+    const { data: quizRows, error: quizError } = await supabase
+      .from('quizzes')
+      .select('id')
+      .in('module_id', moduleIds);
+
+    if (quizError) throw quizError;
+
+    const quizIds = ((quizRows ?? []) as { id: string }[]).map((quiz) => quiz.id);
+
+    const deleteResults = await Promise.all([
+      supabase
+        .from('lesson_progress')
+        .delete()
+        .eq('student_id', parsed.data.studentId)
+        .in('module_id', moduleIds),
+      supabase
+        .from('module_progress')
+        .delete()
+        .eq('student_id', parsed.data.studentId)
+        .in('module_id', moduleIds),
+      supabase
+        .from('reflections')
+        .delete()
+        .eq('student_id', parsed.data.studentId)
+        .in('module_id', moduleIds),
+      quizIds.length
+        ? supabase
+            .from('quiz_attempts')
+            .delete()
+            .eq('student_id', parsed.data.studentId)
+            .in('quiz_id', quizIds)
+        : Promise.resolve({ error: null }),
+    ]);
+
+    const deleteError = deleteResults.find((result) => result.error)?.error;
+    if (deleteError) throw deleteError;
+
+    revalidatePath('/teacher/dashboard');
+    revalidatePath('/teacher/reports');
+    revalidatePath('/student/dashboard');
+    revalidatePath('/student/modules');
+    revalidatePath('/student/progress');
+    revalidatePath(`/teacher/classes/${parsed.data.classId}`);
+
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : 'Progress siswa belum berhasil direset.',
     };
   }
 }

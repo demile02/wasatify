@@ -24,7 +24,7 @@ export function SectionCard({
   return (
     <Component
       className={cn(
-        'rounded-[1.25rem] border backdrop-blur-sm',
+        'min-w-0 rounded-[1.25rem] border backdrop-blur-sm',
         padded && 'p-5 sm:p-6',
         variantClass[variant],
         className,

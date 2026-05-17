@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useTransition } from 'react';
 import {
   Activity,
   BarChart3,
@@ -8,15 +8,21 @@ import {
   ClipboardCheck,
   Download,
   MessageSquareText,
+  RefreshCcw,
   Search,
   Users,
 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 import { EmptyState } from '@/components/shared/empty-state';
 import { ProgressBar } from '@/components/shared/progress-bar';
 import { SectionCard } from '@/components/shared/section-card';
 import { StatCard } from '@/components/shared/stat-card';
 import { Button } from '@/components/ui/button';
-import type { TeacherClassActivity, TeacherClassDetailData, TeacherStudentProgress } from '@/lib/teacher/analytics';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { resetStudentProgressAction } from '@/lib/teacher/class-actions';
+import type { TeacherClassActivity, TeacherClassDetailData, TeacherClassModule, TeacherStudentProgress } from '@/lib/teacher/analytics';
 import { cn } from '@/lib/utils';
 
 type TeacherClassDetailViewProps = {
@@ -36,6 +42,7 @@ const tabs: { id: TabId; label: string }[] = [
 export function TeacherClassDetailView({ data }: TeacherClassDetailViewProps) {
   const [activeTab, setActiveTab] = useState<TabId>('overview');
   const [query, setQuery] = useState('');
+  const [resetStudent, setResetStudent] = useState<TeacherStudentProgress | null>(null);
 
   const filteredStudents = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -50,7 +57,7 @@ export function TeacherClassDetailView({ data }: TeacherClassDetailViewProps) {
   }, [data.students, query]);
 
   return (
-    <div className="mt-8">
+    <div className="mt-8 min-w-0 overflow-x-hidden">
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <StatCard
           label="Total Siswa"
@@ -87,8 +94,8 @@ export function TeacherClassDetailView({ data }: TeacherClassDetailViewProps) {
         />
       </div>
 
-      <div className="mt-6 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+      <div className="mt-6 flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="-mx-1 flex min-w-0 gap-2 overflow-x-auto px-1 pb-1 scrollbar-hide">
           {tabs.map((tab) => (
             <button
               key={tab.id}
@@ -114,8 +121,8 @@ export function TeacherClassDetailView({ data }: TeacherClassDetailViewProps) {
 
       <div className="mt-6">
         {activeTab === 'overview' && (
-          <div className="grid gap-6 xl:grid-cols-[1fr_0.78fr]">
-            <SectionCard>
+          <div className="grid min-w-0 gap-6 xl:grid-cols-[1fr_0.78fr]">
+            <SectionCard className="min-w-0">
               <p className="font-bold text-ink">Progress Kelas Overall</p>
               <ProgressBar value={data.metrics.completionRate} label="Rata-rata progress kelas" showValue className="mt-4" />
               <div className="mt-6">
@@ -125,7 +132,7 @@ export function TeacherClassDetailView({ data }: TeacherClassDetailViewProps) {
               <StudentProgressTable students={[...filteredStudents].sort((first, second) => second.progress - first.progress).slice(0, 5)} />
             </SectionCard>
 
-            <SectionCard>
+            <SectionCard className="min-w-0">
               <p className="font-bold text-ink">Modules Needing Attention</p>
               {data.modules.length ? (
                 <div className="mt-5 space-y-4">
@@ -155,20 +162,20 @@ export function TeacherClassDetailView({ data }: TeacherClassDetailViewProps) {
         )}
 
         {activeTab === 'students' && (
-          <SectionCard>
+          <SectionCard className="min-w-0">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <p className="font-bold text-ink">Siswa</p>
               <StudentSearch value={query} onChange={setQuery} className="sm:max-w-sm" />
             </div>
-            <StudentProgressTable students={filteredStudents} />
+            <StudentProgressTable students={filteredStudents} onResetStudent={setResetStudent} />
           </SectionCard>
         )}
 
         {activeTab === 'modules' && (
-          <SectionCard>
+          <SectionCard className="min-w-0">
             <p className="font-bold text-ink">Progress Modul</p>
             {data.modules.length ? (
-              <div className="mt-5 overflow-x-auto rounded-2xl border border-border bg-white">
+              <div className="-mx-1 mt-5 max-w-full overflow-x-auto rounded-2xl border border-border bg-white px-1">
                 <table className="w-full min-w-[760px] text-left text-sm">
                   <thead className="border-b border-border bg-slate-50 text-xs uppercase tracking-wide text-muted-foreground">
                     <tr>
@@ -204,19 +211,31 @@ export function TeacherClassDetailView({ data }: TeacherClassDetailViewProps) {
         )}
 
         {activeTab === 'quizzes' && (
-          <SectionCard>
+          <SectionCard className="min-w-0">
             <p className="font-bold text-ink">Nilai & Evaluasi</p>
             <ActivityList activities={data.activities.filter((activity) => activity.type === 'quiz')} emptyTitle="Belum ada nilai kuis" />
           </SectionCard>
         )}
 
         {activeTab === 'reflections' && (
-          <SectionCard>
+          <SectionCard className="min-w-0">
             <p className="font-bold text-ink">Refleksi</p>
             <ActivityList activities={data.activities.filter((activity) => activity.type === 'reflection')} emptyTitle="Belum ada refleksi" />
           </SectionCard>
         )}
       </div>
+
+      {data.classInfo && (
+        <ResetProgressDialog
+          classId={data.classInfo.id}
+          student={resetStudent}
+          modules={data.modules}
+          open={Boolean(resetStudent)}
+          onOpenChange={(open) => {
+            if (!open) setResetStudent(null);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -243,7 +262,13 @@ function StudentSearch({
   );
 }
 
-function StudentProgressTable({ students }: { students: TeacherStudentProgress[] }) {
+function StudentProgressTable({
+  students,
+  onResetStudent,
+}: {
+  students: TeacherStudentProgress[];
+  onResetStudent?: (student: TeacherStudentProgress) => void;
+}) {
   if (!students.length) {
     return (
       <EmptyState
@@ -256,8 +281,8 @@ function StudentProgressTable({ students }: { students: TeacherStudentProgress[]
   }
 
   return (
-    <div className="mt-5 overflow-x-auto rounded-2xl border border-border bg-white">
-      <table className="w-full min-w-[820px] text-left text-sm">
+    <div className="-mx-1 mt-5 max-w-full overflow-x-auto rounded-2xl border border-border bg-white px-1">
+      <table className="w-full min-w-[900px] text-left text-sm">
         <thead className="border-b border-border bg-slate-50 text-xs uppercase tracking-wide text-muted-foreground">
           <tr>
             <th className="px-4 py-3 font-bold">Siswa</th>
@@ -266,6 +291,7 @@ function StudentProgressTable({ students }: { students: TeacherStudentProgress[]
             <th className="px-4 py-3 font-bold">Refleksi</th>
             <th className="px-4 py-3 font-bold">Modul Selesai</th>
             <th className="px-4 py-3 font-bold">Terakhir Aktif</th>
+            {onResetStudent && <th className="px-4 py-3 font-bold">Aksi</th>}
           </tr>
         </thead>
         <tbody className="divide-y divide-border">
@@ -284,11 +310,144 @@ function StudentProgressTable({ students }: { students: TeacherStudentProgress[]
               <td className="px-4 py-4 text-muted-foreground">
                 {student.lastActive ? formatDate(student.lastActive) : '-'}
               </td>
+              {onResetStudent && (
+                <td className="px-4 py-4">
+                  <Button type="button" variant="outline" size="sm" className="bg-white" onClick={() => onResetStudent(student)}>
+                    <RefreshCcw className="h-4 w-4" />
+                    Reset
+                  </Button>
+                </td>
+              )}
             </tr>
           ))}
         </tbody>
       </table>
     </div>
+  );
+}
+
+function ResetProgressDialog({
+  classId,
+  student,
+  modules,
+  open,
+  onOpenChange,
+}: {
+  classId: string;
+  student: TeacherStudentProgress | null;
+  modules: TeacherClassModule[];
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const router = useRouter();
+  const [mode, setMode] = useState<'all' | 'module'>('all');
+  const [moduleId, setModuleId] = useState('');
+  const [isPending, startTransition] = useTransition();
+  const selectableModules = modules.filter((moduleItem) => moduleItem.status === 'published');
+  const canSubmit = Boolean(student && (mode === 'all' || moduleId));
+
+  function submitReset() {
+    if (!student) return;
+    if (!canSubmit) {
+      toast.warning('Pilih modul yang ingin direset.');
+      return;
+    }
+
+    startTransition(async () => {
+      const result = await resetStudentProgressAction({
+        classId,
+        studentId: student.id,
+        moduleId: mode === 'module' ? moduleId : undefined,
+      });
+
+      if (!result.ok) {
+        toast.error(result.error ?? 'Progress siswa belum berhasil direset.');
+        return;
+      }
+
+      toast.success('Progress siswa berhasil direset.');
+      onOpenChange(false);
+      setMode('all');
+      setModuleId('');
+      router.refresh();
+    });
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="bg-white sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Reset progress siswa ini?</DialogTitle>
+          <DialogDescription>
+            Data progress, lesson, kuis, dan refleksi untuk modul milik guru kelas akan dihapus. Reset tidak dapat dibatalkan.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-border bg-mint/35 p-4">
+            <p className="font-bold text-ink">{student?.name}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{student?.email ?? 'Siswa kelas'}</p>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={() => setMode('all')}
+              className={cn(
+                'rounded-2xl border p-4 text-left text-sm font-bold transition',
+                mode === 'all' ? 'border-primary bg-mint text-primary' : 'border-border bg-white text-foreground',
+              )}
+            >
+              Reset semua progress
+              <span className="mt-1 block text-xs font-semibold text-muted-foreground">Hanya modul milik guru kelas ini.</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode('module')}
+              className={cn(
+                'rounded-2xl border p-4 text-left text-sm font-bold transition',
+                mode === 'module' ? 'border-primary bg-mint text-primary' : 'border-border bg-white text-foreground',
+              )}
+            >
+              Reset per modul
+              <span className="mt-1 block text-xs font-semibold text-muted-foreground">Pilih satu modul tertentu.</span>
+            </button>
+          </div>
+
+          {mode === 'module' && (
+            <div>
+              <label htmlFor="reset-module" className="text-sm font-bold text-ink">
+                Modul
+              </label>
+              <Select value={moduleId} onValueChange={setModuleId}>
+                <SelectTrigger id="reset-module" className="mt-2 h-12 rounded-xl bg-white">
+                  <SelectValue placeholder="Pilih modul" />
+                </SelectTrigger>
+                <SelectContent>
+                  {selectableModules.map((moduleItem) => (
+                    <SelectItem key={moduleItem.id} value={moduleItem.id}>
+                      {moduleItem.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {!selectableModules.length && (
+                <p className="mt-2 text-sm font-semibold text-gold">Belum ada modul published milik guru kelas ini.</p>
+              )}
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
+            Batal
+          </Button>
+          <Button type="button" variant="destructive" onClick={submitReset} disabled={isPending || !canSubmit}>
+            {isPending ? 'Mereset...' : 'Reset Progress'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

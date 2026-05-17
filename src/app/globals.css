@@ -57,11 +57,13 @@
   }
 
   html {
+    overflow-x: hidden;
     scroll-behavior: smooth;
   }
 
   body {
     min-width: 320px;
+    overflow-x: hidden;
     background:
       radial-gradient(circle at top left, hsl(var(--cream) / 0.85), transparent 34rem),
       hsl(var(--background));
@@ -76,6 +78,29 @@
 }
 
 @layer utilities {
+  .app-ui {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  .app-ui :where(button, a, [role='button'], [role='tab'], [role='menuitem'], summary) {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  .app-ui :where(input, textarea, select, [contenteditable='true'], .app-readable, .app-readable *) {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+
+  .app-readable {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+
   .islamic-pattern {
     background-image:
       radial-gradient(hsl(var(--primary) / 0.06) 1px, transparent 1px),

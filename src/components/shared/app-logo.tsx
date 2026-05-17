@@ -12,7 +12,7 @@ type AppLogoProps = {
 
 const sizeClass = {
   sm: {
-    mark: 'h-9 w-9',
+    mark: 'h-10 w-10',
     title: 'text-lg',
     subtitle: 'text-[10px]',
   },

@@ -176,6 +176,7 @@ export async function getTeacherModules(profile?: Profile): Promise<TeacherModul
     let query = supabase
       .from('modules')
       .select('id, slug, title, description, class_id, cover_image_path, tags, status, estimated_minutes, created_at, updated_at')
+      .order('order_index', { ascending: true })
       .order('updated_at', { ascending: false });
 
     if (profile?.role === 'teacher') {

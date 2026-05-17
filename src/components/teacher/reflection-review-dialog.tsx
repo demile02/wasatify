@@ -101,7 +101,7 @@ function ReviewBlock({ title, content }: { title: string; content: string }) {
   return (
     <div className="rounded-2xl border border-border bg-mint/40 p-4">
       <p className="text-sm font-bold text-primary">{title}</p>
-      <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-foreground">{content}</p>
+      <p className="app-readable mt-2 whitespace-pre-wrap text-sm leading-7 text-foreground">{content}</p>
     </div>
   );
 }

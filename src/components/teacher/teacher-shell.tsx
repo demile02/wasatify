@@ -1,6 +1,7 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import type { FormEvent, ReactNode } from 'react';
+import { useRef } from 'react';
 import {
   Bell,
   BookOpen,
@@ -22,6 +23,7 @@ import { TeacherMobileBottomNav } from '@/components/layout/teacher-mobile-botto
 import { AppLogo } from '@/components/shared/app-logo';
 import { ProfileMenu } from '@/components/shared/profile-menu';
 import { Button } from '@/components/ui/button';
+import { TeacherMobileQuickActions } from '@/components/teacher/teacher-mobile-quick-actions';
 import { teacherNavigation } from '@/lib/constants/navigation';
 import type { Profile } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -47,9 +49,18 @@ const iconMap = {
 
 export function TeacherShell({ profile, children }: TeacherShellProps) {
   const pathname = usePathname() ?? '';
+  const desktopSearchRef = useRef<HTMLInputElement>(null);
+  const mobileSearchRef = useRef<HTMLInputElement>(null);
+
+  function submitSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const input = form.elements.namedItem('teacherSearch') as HTMLInputElement | null;
+    input?.blur();
+  }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="app-ui min-h-screen bg-background">
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-72 flex-col overflow-hidden bg-dark-emerald px-4 py-5 text-white shadow-soft lg:flex">
         <div className="absolute inset-x-0 bottom-0 h-72 bg-[radial-gradient(circle_at_50%_100%,rgba(201,138,26,0.25),transparent_64%)]" />
         <div className="relative px-2">
@@ -90,10 +101,10 @@ export function TeacherShell({ profile, children }: TeacherShellProps) {
         </div>
       </aside>
 
-      <div className="lg:pl-72">
+      <div className="min-w-0 lg:pl-72">
         <header className="sticky top-0 z-30 border-b border-primary/10 bg-background/88 backdrop-blur-xl">
-          <div className="flex min-h-20 items-center gap-3 px-5 py-3 sm:px-8">
-            <div className="lg:hidden">
+          <div className="flex min-h-16 items-center gap-3 px-5 py-3 sm:px-8 md:min-h-20">
+            <div className="shrink-0 lg:hidden">
               <AppLogo href="/" size="sm" markOnly />
             </div>
 
@@ -104,16 +115,21 @@ export function TeacherShell({ profile, children }: TeacherShellProps) {
               </p>
             </div>
 
-            <div className="ml-auto hidden w-full max-w-lg items-center gap-2 rounded-xl border border-border bg-white px-4 py-2.5 shadow-sm md:flex">
+            <form
+              onSubmit={submitSearch}
+              className="ml-auto hidden w-full max-w-lg items-center gap-2 rounded-xl border border-border bg-white px-4 py-2.5 shadow-sm md:flex"
+            >
               <Search className="h-4 w-4 text-muted-foreground" />
               <input
+                ref={desktopSearchRef}
+                name="teacherSearch"
                 aria-label="Cari data guru"
                 placeholder="Cari kelas, modul, siswa, atau laporan..."
                 className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground/70"
               />
-            </div>
+            </form>
 
-            <button className="relative grid h-11 w-11 place-items-center rounded-xl border border-border bg-white text-foreground shadow-sm transition hover:bg-mint">
+            <button className="relative ml-auto grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-border bg-white text-foreground shadow-sm transition hover:bg-mint md:ml-0 md:h-11 md:w-11">
               <Bell className="h-5 w-5" />
               <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-gold" />
             </button>
@@ -122,23 +138,26 @@ export function TeacherShell({ profile, children }: TeacherShellProps) {
           </div>
 
           <div className="border-t border-primary/10 px-5 pb-3 md:hidden">
-            <div className="flex items-center gap-2 rounded-xl border border-border bg-white px-4 py-2.5 shadow-sm">
+            <form onSubmit={submitSearch} className="flex items-center gap-2 rounded-xl border border-border bg-white px-4 py-2.5 shadow-sm">
               <Search className="h-4 w-4 text-muted-foreground" />
               <input
+                ref={mobileSearchRef}
+                name="teacherSearch"
                 aria-label="Cari data guru mobile"
                 placeholder="Cari kelas atau modul..."
                 className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground/70"
               />
-            </div>
+            </form>
           </div>
         </header>
 
-        <main className="px-5 py-6 pb-32 sm:px-8 lg:pb-10">
-          <div className="mx-auto max-w-7xl">{children}</div>
+        <main className="min-w-0 overflow-x-hidden px-5 py-6 pb-36 sm:px-8 lg:pb-10">
+          <div className="mx-auto min-w-0 max-w-7xl">{children}</div>
         </main>
       </div>
 
       <TeacherMobileBottomNav />
+      <TeacherMobileQuickActions />
     </div>
   );
 }

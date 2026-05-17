@@ -17,7 +17,6 @@ import { ProgressBar } from '@/components/shared/progress-bar';
 import { SectionCard } from '@/components/shared/section-card';
 import { StatCard } from '@/components/shared/stat-card';
 import { Button } from '@/components/ui/button';
-import { TeacherMobileQuickActions } from '@/components/teacher/teacher-mobile-quick-actions';
 import { TeacherModuleCompletionChart } from '@/components/teacher/teacher-module-completion-chart';
 import { requireTeacher } from '@/lib/auth/server';
 import { demoTeacherProfile } from '@/lib/demo/teacher';
@@ -43,7 +42,6 @@ export default async function TeacherDashboardPage() {
           </Button>
         }
       />
-      <TeacherMobileQuickActions />
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Kelas Aktif" value={dashboard.classesCount} description="Kelas dikelola" icon={Users} />
@@ -150,7 +148,7 @@ export default async function TeacherDashboardPage() {
                     <p className="font-bold text-ink">{announcement.title}</p>
                     <PriorityBadge priority={announcement.priority} />
                   </div>
-                  <p className="mt-2 line-clamp-2 text-sm leading-6 text-muted-foreground">{announcement.content}</p>
+                  <p className="app-readable mt-2 line-clamp-2 text-sm leading-6 text-muted-foreground">{announcement.content}</p>
                 </div>
               ))}
             </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { CalendarClock, CheckCircle2, MessageSquareText, Search, UserCheck } from 'lucide-react';
 import { EmptyState } from '@/components/shared/empty-state';
@@ -23,6 +23,17 @@ export function ReflectionsReviewTable({ data }: ReflectionsReviewTableProps) {
   const [moduleId, setModuleId] = useState('all');
   const [status, setStatus] = useState<ReviewStatus>('all');
   const [selectedReflection, setSelectedReflection] = useState<TeacherReflectionItem | null>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (classId !== 'all' && !data.classes.some((classItem) => classItem.id === classId)) {
+      setClassId('all');
+    }
+
+    if (moduleId !== 'all' && !data.modules.some((moduleItem) => moduleItem.id === moduleId)) {
+      setModuleId('all');
+    }
+  }, [classId, data.classes, data.modules, moduleId]);
 
   const filteredReflections = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -43,6 +54,11 @@ export function ReflectionsReviewTable({ data }: ReflectionsReviewTableProps) {
     });
   }, [classId, data.reflections, moduleId, query, status]);
 
+  function submitSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    searchRef.current?.blur();
+  }
+
   return (
     <div className="mt-8 space-y-6">
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -54,17 +70,18 @@ export function ReflectionsReviewTable({ data }: ReflectionsReviewTableProps) {
 
       <SectionCard className="space-y-4">
         <div className="grid gap-3 xl:grid-cols-[1.5fr_1fr_1fr_1fr]">
-          <label className="flex min-h-12 items-center gap-2 rounded-xl border border-border bg-white px-4 shadow-sm">
+          <form onSubmit={submitSearch} className="flex min-h-12 items-center gap-2 rounded-xl border border-border bg-white px-4 shadow-sm">
             <Search className="h-4 w-4 text-muted-foreground" />
             <input
+              ref={searchRef}
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Cari siswa, modul, atau isi refleksi..."
               className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground/70"
             />
-          </label>
+          </form>
 
-          <FilterSelect value={classId} onChange={setClassId} label="Semua Kelas">
+          <FilterSelect value={classId} onChange={setClassId} label="Semua Kelas" disabled={!data.classes.length}>
             {data.classes.map((classItem) => (
               <option key={classItem.id} value={classItem.id}>
                 {classItem.label}
@@ -72,7 +89,7 @@ export function ReflectionsReviewTable({ data }: ReflectionsReviewTableProps) {
             ))}
           </FilterSelect>
 
-          <FilterSelect value={moduleId} onChange={setModuleId} label="Semua Modul">
+          <FilterSelect value={moduleId} onChange={setModuleId} label="Semua Modul" disabled={!data.modules.length}>
             {data.modules.map((moduleItem) => (
               <option key={moduleItem.id} value={moduleItem.id}>
                 {moduleItem.label}
@@ -108,8 +125,8 @@ export function ReflectionsReviewTable({ data }: ReflectionsReviewTableProps) {
                       <p className="mt-1 text-xs text-muted-foreground">{formatDate(reflection.createdAt)}</p>
                     </td>
                     <td className="px-4 py-4 align-top font-semibold text-foreground">{reflection.moduleTitle}</td>
-                    <td className="px-4 py-4 align-top text-muted-foreground">{truncate(reflection.reflectionText, 120)}</td>
-                    <td className="px-4 py-4 align-top text-muted-foreground">
+                    <td className="app-readable px-4 py-4 align-top text-muted-foreground">{truncate(reflection.reflectionText, 120)}</td>
+                    <td className="app-readable px-4 py-4 align-top text-muted-foreground">
                       {truncate(reflection.actionPlan || 'Belum ada aksi nyata.', 100)}
                     </td>
                     <td className="px-4 py-4 align-top">
@@ -157,17 +174,20 @@ function FilterSelect({
   onChange,
   label,
   children,
+  disabled,
 }: {
   value: string;
   onChange: (value: string) => void;
   label: string;
   children: ReactNode;
+  disabled?: boolean;
 }) {
   return (
     <select
       value={value}
       onChange={(event) => onChange(event.target.value)}
-      className="h-12 w-full rounded-xl border border-border bg-white px-4 text-sm font-semibold text-foreground shadow-sm outline-none focus:border-primary focus:ring-4 focus:ring-primary/10"
+      disabled={disabled}
+      className="h-12 w-full rounded-xl border border-border bg-white px-4 text-sm font-semibold text-foreground shadow-sm outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-muted-foreground"
     >
       <option value="all">{label}</option>
       {children}

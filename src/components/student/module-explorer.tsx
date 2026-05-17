@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { BookOpen, Clock, Lock, Search } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils';
 
 type ModuleExplorerProps = {
   modules: StudentModule[];
+  initialQuery?: string;
 };
 
 type FilterValue = 'all' | ModuleStatus;
@@ -26,9 +27,15 @@ const filters: { label: string; value: FilterValue }[] = [
   { label: 'Terkunci', value: 'locked' },
 ];
 
-export function ModuleExplorer({ modules }: ModuleExplorerProps) {
+export function ModuleExplorer({ modules, initialQuery = '' }: ModuleExplorerProps) {
   const [activeFilter, setActiveFilter] = useState<FilterValue>('all');
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(initialQuery);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const router = useRouter();
+
+  useEffect(() => {
+    setQuery(initialQuery);
+  }, [initialQuery]);
 
   const filteredModules = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -43,6 +50,13 @@ export function ModuleExplorer({ modules }: ModuleExplorerProps) {
       return matchesFilter && matchesQuery;
     });
   }, [activeFilter, modules, query]);
+
+  function submitSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    inputRef.current?.blur();
+    const normalizedQuery = query.trim();
+    router.replace(normalizedQuery ? `/student/modules?q=${encodeURIComponent(normalizedQuery)}` : '/student/modules');
+  }
 
   if (!modules.length) {
     return (
@@ -76,15 +90,19 @@ export function ModuleExplorer({ modules }: ModuleExplorerProps) {
           ))}
         </div>
 
-        <div className="flex min-h-12 w-full items-center gap-2 rounded-xl border border-border bg-white px-4 shadow-sm xl:max-w-sm">
+        <form
+          onSubmit={submitSearch}
+          className="flex min-h-12 w-full items-center gap-2 rounded-xl border border-border bg-white px-4 shadow-sm xl:max-w-sm"
+        >
           <Search className="h-4 w-4 text-muted-foreground" />
           <Input
+            ref={inputRef}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Cari modul..."
             className="h-auto border-0 bg-transparent p-0 text-sm shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
           />
-        </div>
+        </form>
       </div>
 
       {filteredModules.length ? (

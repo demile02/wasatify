@@ -126,7 +126,7 @@ export function LessonReader({ moduleItem, lessons, completedLessonIds }: Lesson
   }
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[0.35fr_1fr]">
+    <div className="grid min-w-0 gap-6 xl:grid-cols-[0.35fr_1fr]">
       <SectionCard className="h-fit xl:sticky xl:top-24">
         <div className="flex items-center justify-between gap-3">
           <div>
@@ -171,7 +171,7 @@ export function LessonReader({ moduleItem, lessons, completedLessonIds }: Lesson
         </div>
       </SectionCard>
 
-      <SectionCard className="overflow-hidden">
+      <SectionCard className="min-w-0 overflow-hidden">
         <div className="flex flex-col gap-5 border-b border-border pb-5 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <Button asChild variant="ghost" size="sm" className="-ml-3 mb-3">
@@ -338,7 +338,7 @@ function MaterialPanel({
 
   return (
     <div className="space-y-5">
-      <div className="rounded-2xl bg-mint/45 p-5 sm:p-6">
+      <div className="app-readable rounded-2xl bg-mint/45 p-5 sm:p-6">
         <div className="space-y-5 text-base leading-8 text-muted-foreground">
           {paragraphs.map((paragraph) => (
             <p key={paragraph}>{paragraph}</p>
@@ -352,7 +352,7 @@ function MaterialPanel({
             <Lightbulb className="mt-0.5 h-5 w-5 shrink-0 text-gold" />
             <div>
               <p className="font-bold text-ink">Renungkan</p>
-              <p className="mt-1 text-sm leading-6 text-muted-foreground">{reflectionPrompt}</p>
+              <p className="app-readable mt-1 text-sm leading-6 text-muted-foreground">{reflectionPrompt}</p>
             </div>
           </div>
         </div>
@@ -400,17 +400,17 @@ function MediaPanel({
     const embedUrl = toEmbeddableVideoUrl(url);
 
     return (
-      <div className="overflow-hidden rounded-2xl border border-border bg-slate-950 shadow-card">
+      <div className="aspect-video w-full max-w-full overflow-hidden rounded-2xl border border-border bg-slate-950 shadow-card">
         {embedUrl ? (
           <iframe
             src={embedUrl}
             title="Video lesson"
-            className="aspect-video w-full"
+            className="h-full w-full border-0"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
             allowFullScreen
           />
         ) : (
-          <video src={url} controls className="aspect-video w-full" />
+          <video src={url} controls className="h-full w-full object-contain" />
         )}
       </div>
     );

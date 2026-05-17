@@ -2,7 +2,7 @@
 
 import type { ReactNode } from 'react';
 import { useMemo, useState, useTransition } from 'react';
-import { Archive, BookOpen, Copy, Eye, MoreVertical, PencilLine, Plus, Search, Send, Trash2, Undo2 } from 'lucide-react';
+import { Archive, ArrowDown, ArrowUp, BookOpen, Copy, Eye, MoreVertical, PencilLine, Plus, Search, Send, Trash2, Undo2 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
@@ -21,6 +21,7 @@ import {
   archiveTeacherModuleAction,
   deleteTeacherModuleAction,
   duplicateTeacherModuleAction,
+  reorderTeacherModuleAction,
   toggleTeacherModulePublishAction,
 } from '@/lib/teacher/actions';
 import type { TeacherModuleListItem, TeacherModuleStatus } from '@/lib/teacher/data';
@@ -154,6 +155,23 @@ export function TeacherModulesTable({ modules }: TeacherModulesTableProps) {
     });
   }
 
+  function reorderModule(moduleItem: TeacherModuleListItem, direction: 'up' | 'down') {
+    setPendingModuleId(moduleItem.id);
+    startTransition(async () => {
+      const result = await reorderTeacherModuleAction(moduleItem.id, direction);
+
+      setPendingModuleId(null);
+
+      if (!result.ok) {
+        toast.error(result.error ?? 'Urutan modul belum berhasil diperbarui.');
+        return;
+      }
+
+      toast.success('Urutan modul diperbarui.');
+      router.refresh();
+    });
+  }
+
   return (
     <div className="mt-8">
       <div className="grid gap-3 lg:grid-cols-[1fr_auto_auto] lg:items-center">
@@ -241,6 +259,28 @@ export function TeacherModulesTable({ modules }: TeacherModulesTableProps) {
                       <IconAction href={`/teacher/modules/${moduleItem.id}/edit`} label="Edit">
                         <PencilLine className="h-4 w-4" />
                       </IconAction>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-9 w-9 rounded-xl"
+                        disabled={isPending && pendingModuleId === moduleItem.id}
+                        title="Naik"
+                        onClick={() => reorderModule(moduleItem, 'up')}
+                      >
+                        <ArrowUp className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-9 w-9 rounded-xl"
+                        disabled={isPending && pendingModuleId === moduleItem.id}
+                        title="Turun"
+                        onClick={() => reorderModule(moduleItem, 'down')}
+                      >
+                        <ArrowDown className="h-4 w-4" />
+                      </Button>
                       <Button
                         type="button"
                         variant="outline"

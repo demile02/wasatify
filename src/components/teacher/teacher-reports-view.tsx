@@ -31,7 +31,6 @@ type TeacherReportsViewProps = {
 
 export function TeacherReportsView({ data }: TeacherReportsViewProps) {
   const [classId, setClassId] = useState(data.scopes[0]?.classId ?? 'all');
-  const [range, setRange] = useState('all');
   const activeScope = useMemo(
     () => data.scopes.find((scope) => scope.classId === classId) ?? data.scopes[0] ?? emptyScope,
     [classId, data.scopes],
@@ -45,8 +44,8 @@ export function TeacherReportsView({ data }: TeacherReportsViewProps) {
   );
 
   return (
-    <div className="mt-8">
-      <div className="grid gap-3 lg:grid-cols-[1fr_auto_auto] lg:items-end">
+    <div className="mt-8 min-w-0 overflow-x-hidden">
+      <div className="grid min-w-0 gap-3 lg:grid-cols-[1fr_auto] lg:items-end">
         <label>
           <span className="mb-2 block text-sm font-bold text-ink">Filter class</span>
           <select
@@ -59,18 +58,6 @@ export function TeacherReportsView({ data }: TeacherReportsViewProps) {
                 {scope.className}
               </option>
             ))}
-          </select>
-        </label>
-        <label>
-          <span className="mb-2 block text-sm font-bold text-ink">Rentang waktu</span>
-          <select
-            value={range}
-            onChange={(event) => setRange(event.target.value)}
-            className="h-12 w-full rounded-xl border border-border bg-white px-4 text-sm font-semibold text-foreground shadow-sm outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 lg:w-44"
-          >
-            <option value="7">7 Hari</option>
-            <option value="30">30 Hari</option>
-            <option value="all">Semua</option>
           </select>
         </label>
         <ExportReportButton rows={activeScope.students} />
@@ -105,7 +92,7 @@ export function TeacherReportsView({ data }: TeacherReportsViewProps) {
         />
       </div>
 
-      <div className="mt-6 grid gap-6 xl:grid-cols-2">
+      <div className="mt-6 grid min-w-0 gap-6 xl:grid-cols-2">
         <ChartCard title="Completion by Class">
           {classCompletionData.length && hasCountData(classCompletionData, 'completion') ? (
             <ResponsiveContainer width="100%" height={280}>
@@ -185,11 +172,11 @@ export function TeacherReportsView({ data }: TeacherReportsViewProps) {
         </ChartCard>
       </div>
 
-      <div className="mt-6 grid gap-6 xl:grid-cols-2">
+      <div className="mt-6 grid min-w-0 gap-6 xl:grid-cols-2">
         <SectionCard>
           <p className="font-bold text-ink">Top Modules by Completion</p>
           {activeScope.topModules.length ? (
-            <div className="mt-4 overflow-x-auto">
+            <div className="mt-4 max-w-full overflow-x-auto">
               <table className="w-full min-w-[520px] text-left text-sm">
                 <thead>
                   <tr className="border-b border-border text-xs uppercase tracking-wide text-muted-foreground">
@@ -224,7 +211,7 @@ export function TeacherReportsView({ data }: TeacherReportsViewProps) {
         <SectionCard>
           <p className="font-bold text-ink">Students Needing Attention</p>
           {activeScope.studentsNeedingAttention.length ? (
-            <div className="mt-4 overflow-x-auto">
+            <div className="mt-4 max-w-full overflow-x-auto">
               <table className="w-full min-w-[560px] text-left text-sm">
                 <thead>
                   <tr className="border-b border-border text-xs uppercase tracking-wide text-muted-foreground">

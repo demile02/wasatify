@@ -35,6 +35,11 @@ export type SaveTeacherModuleInput = {
   lessons: ModuleEditorLesson[];
   quiz: ModuleEditorQuiz;
   intent: 'draft' | 'publish';
+  notification?: {
+    enabled: boolean;
+    message?: string;
+    type?: 'publish' | 'update' | 'quiz_update';
+  };
 };
 
 export type SaveTeacherModuleResult = {
@@ -72,6 +77,13 @@ const saveTeacherModuleSchema = z.object({
   lessons: z.array(z.unknown()),
   quiz: z.unknown(),
   intent: z.enum(['draft', 'publish']),
+  notification: z
+    .object({
+      enabled: z.boolean(),
+      message: z.string().optional(),
+      type: z.enum(['publish', 'update', 'quiz_update']).optional(),
+    })
+    .optional(),
 });
 
 export async function saveTeacherModuleAction(
@@ -135,6 +147,15 @@ export async function saveTeacherModuleAction(
     await saveCoverAsset(moduleId, user.id, input.coverAsset);
     await syncLessons(moduleId, input.lessons);
     await syncQuiz(moduleId, user.id, input.quiz, isPublishing);
+    await maybeCreateModuleNotification({
+      enabled: input.notification?.enabled ?? false,
+      message: input.notification?.message,
+      type: input.notification?.type ?? (isPublishing ? 'publish' : 'update'),
+      moduleId,
+      teacherId: user.id,
+      classId: input.classId || null,
+      moduleTitle: input.title,
+    });
 
     revalidatePath('/teacher/dashboard');
     revalidatePath('/teacher/modules');
@@ -242,6 +263,7 @@ async function syncLessons(moduleId: string, lessons: ModuleEditorLesson[]) {
   const supabase = await createClient();
   const normalizedLessons = lessons
     .filter((lesson) => lesson.title.trim() || lesson.content.trim())
+    .sort((first, second) => first.orderIndex - second.orderIndex)
     .map((lesson, index) => ({
       id: lesson.id,
       module_id: moduleId,
@@ -252,7 +274,7 @@ async function syncLessons(moduleId: string, lessons: ModuleEditorLesson[]) {
       video_url: lesson.videoUrl.trim() || null,
       infographic_url: lesson.infographicUrl.trim() || null,
       reflection_prompt: lesson.reflectionPrompt.trim() || null,
-      order_index: Number.isFinite(lesson.orderIndex) ? Math.max(Math.round(lesson.orderIndex), 1) : index + 1,
+      order_index: index + 1,
       estimated_minutes: 5,
     }));
   const keepIds = normalizedLessons.map((lesson) => lesson.id).filter(Boolean) as string[];
@@ -344,6 +366,7 @@ async function syncQuestions(quizId: string, questions: ModuleEditorQuestion[]) 
   const supabase = await createClient();
   const normalizedQuestions = questions
     .filter((question) => question.questionText.trim())
+    .sort((first, second) => first.orderIndex - second.orderIndex)
     .map((question, index) => ({
       id: question.id,
       quiz_id: quizId,
@@ -360,12 +383,17 @@ async function syncQuestions(quizId: string, questions: ModuleEditorQuestion[]) 
       explanation: question.explanation.trim(),
       show_explanation: true,
       points: Math.max(Math.round(question.points), 1),
-      order_index: Number.isFinite(question.orderIndex) ? Math.max(Math.round(question.orderIndex), 1) : index + 1,
+      order_index: index + 1,
     }));
   const keepIds = normalizedQuestions.map((question) => question.id).filter(Boolean) as string[];
   const { data: existingQuestions } = await supabase.from('quiz_questions').select('id').eq('quiz_id', quizId);
   const existingIds = ((existingQuestions ?? []) as ExistingIdRow[]).map((row) => row.id);
   const deleteIds = existingIds.filter((id) => !keepIds.includes(id));
+
+  for (const [index, id] of existingIds.entries()) {
+    const { error } = await supabase.from('quiz_questions').update({ order_index: 10000 + index }).eq('id', id);
+    if (error) throw error;
+  }
 
   if (deleteIds.length) {
     const { error } = await supabase.from('quiz_questions').delete().in('id', deleteIds);
@@ -428,7 +456,7 @@ async function resolveUniqueModuleSlug(value: string, moduleId?: string) {
 }
 
 async function resolveModuleOrderIndex(teacherId: string, value: number, moduleId?: string) {
-  if (Number.isFinite(value) && value >= 1) {
+  if (moduleId && Number.isFinite(value) && value >= 1) {
     return Math.max(Math.round(value), 1);
   }
 
@@ -447,6 +475,50 @@ async function resolveModuleOrderIndex(teacherId: string, value: number, moduleI
 
   const maxOrderIndex = Number(data?.[0]?.order_index ?? 0);
   return maxOrderIndex + 1;
+}
+
+async function maybeCreateModuleNotification({
+  enabled,
+  message,
+  type,
+  moduleId,
+  teacherId,
+  classId,
+  moduleTitle,
+}: {
+  enabled: boolean;
+  message?: string;
+  type: 'publish' | 'update' | 'quiz_update';
+  moduleId: string;
+  teacherId: string;
+  classId: string | null;
+  moduleTitle: string;
+}) {
+  if (!enabled) return;
+
+  const supabase = await createClient();
+  const defaultMessage =
+    type === 'publish'
+      ? `Modul baru ${moduleTitle.trim()} telah tersedia.`
+      : type === 'quiz_update'
+        ? `Kuis pada modul ${moduleTitle.trim()} telah diperbarui.`
+        : `Modul ${moduleTitle.trim()} telah diperbarui.`;
+  const content = message?.trim() || defaultMessage;
+  const { error } = await supabase.from('announcements').insert({
+    teacher_id: teacherId,
+    class_id: classId || null,
+    title: type === 'publish' ? 'Modul Baru Tersedia' : 'Modul Diperbarui',
+    content,
+    status: 'published',
+    priority: 'normal',
+    published_at: new Date().toISOString(),
+  });
+
+  if (error) throw error;
+
+  revalidatePath('/teacher/announcements');
+  revalidatePath('/student/dashboard');
+  revalidatePath(moduleId ? `/teacher/modules/${moduleId}/edit` : '/teacher/modules');
 }
 
 function formatSupabaseError(error: unknown, fallback: string) {

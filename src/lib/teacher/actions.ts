@@ -315,6 +315,75 @@ export async function deleteTeacherModuleAction(moduleId: string): Promise<Teach
   }
 }
 
+export async function reorderTeacherModuleAction(
+  moduleId: string,
+  direction: 'up' | 'down',
+): Promise<TeacherModuleActionResult> {
+  const parsed = moduleIdSchema.safeParse(moduleId);
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? 'ID modul tidak valid.' };
+  if (direction !== 'up' && direction !== 'down') return { ok: false, error: 'Arah urutan modul tidak valid.' };
+
+  if (!isSupabaseConfigured) return { ok: true };
+
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) return { ok: false, error: 'Sesi guru belum aktif. Silakan masuk kembali.' };
+
+    const profile = await getCurrentActionProfile(supabase, user.id);
+    const current = await getOwnedModule(supabase, parsed.data, user.id, profile.role);
+    if (!current) return { ok: false, error: 'Modul tidak ditemukan atau bukan milik akun ini.' };
+
+    let neighborQuery = supabase
+      .from('modules')
+      .select('id, order_index')
+      .neq('id', current.id)
+      .order('order_index', { ascending: direction === 'down' })
+      .limit(1);
+
+    if (profile.role === 'teacher') {
+      neighborQuery = neighborQuery.eq('created_by', user.id);
+    }
+
+    neighborQuery =
+      direction === 'up'
+        ? neighborQuery.lt('order_index', current.order_index ?? 1)
+        : neighborQuery.gt('order_index', current.order_index ?? 1);
+
+    const { data: neighbors, error: neighborError } = await neighborQuery;
+    if (neighborError) throw neighborError;
+
+    const neighbor = (neighbors ?? [])[0] as { id: string; order_index: number | null } | undefined;
+    if (!neighbor) return { ok: true, moduleId: current.id };
+
+    const currentOrder = current.order_index ?? 1;
+    const neighborOrder = neighbor.order_index ?? currentOrder;
+
+    const { error: bumpError } = await supabase.from('modules').update({ order_index: -1 }).eq('id', current.id);
+    if (bumpError) throw bumpError;
+
+    const { error: neighborUpdateError } = await supabase
+      .from('modules')
+      .update({ order_index: currentOrder })
+      .eq('id', neighbor.id);
+    if (neighborUpdateError) throw neighborUpdateError;
+
+    const { error: currentUpdateError } = await supabase
+      .from('modules')
+      .update({ order_index: neighborOrder })
+      .eq('id', current.id);
+    if (currentUpdateError) throw currentUpdateError;
+
+    revalidateTeacherModulePaths(current.id);
+    return { ok: true, moduleId: current.id };
+  } catch (error) {
+    return { ok: false, error: formatActionError(error, 'Urutan modul belum berhasil diperbarui.') };
+  }
+}
+
 async function updateOwnedModuleStatus(
   moduleId: string,
   status: 'draft' | 'published' | 'archived',

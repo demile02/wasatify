@@ -28,7 +28,7 @@ export function TeacherMobileQuickActions() {
       <SheetTrigger asChild>
         <Button
           size="icon"
-          className="fixed bottom-24 right-5 z-40 h-14 w-14 rounded-full shadow-soft lg:hidden"
+          className="fixed bottom-24 right-5 z-[60] h-14 w-14 rounded-full shadow-soft lg:hidden"
           aria-label="Buka aksi cepat guru"
         >
           <Plus className="h-6 w-6" />

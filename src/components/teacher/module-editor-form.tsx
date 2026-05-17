@@ -55,10 +55,15 @@ type LocalModuleDraft = {
   form: FormState;
   tagsText: string;
   coverPreview: string;
+  notification: NotificationState;
   savedAt: string;
 };
 
 type StepId = 'info' | 'content' | 'quiz' | 'summary';
+type NotificationState = {
+  enabled: boolean;
+  message: string;
+};
 
 const steps: { id: StepId; label: string }[] = [
   { id: 'info', label: 'Informasi' },
@@ -79,6 +84,10 @@ export function ModuleEditorForm({ mode, initialData, classes }: ModuleEditorFor
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [savingIntent, setSavingIntent] = useState<'draft' | 'publish' | null>(null);
+  const [notification, setNotification] = useState<NotificationState>({
+    enabled: mode === 'create',
+    message: '',
+  });
   const draftStorageKey = `wasatify:module-editor:${mode}:${initialData.id ?? 'new'}`;
   const restoredDraftRef = useRef(false);
 
@@ -106,6 +115,7 @@ export function ModuleEditorForm({ mode, initialData, classes }: ModuleEditorFor
       setForm(toRestoredFormState(parsedDraft.form));
       setTagsText(parsedDraft.tagsText ?? '');
       setCoverPreview(parsedDraft.coverPreview ?? parsedDraft.form.coverImagePath ?? '');
+      setNotification(parsedDraft.notification ?? { enabled: mode === 'create', message: '' });
       setSuccess(
         `Draft lokal dipulihkan${
           parsedDraft.savedAt ? ` dari ${formatDraftDate(parsedDraft.savedAt)}` : ''
@@ -114,7 +124,7 @@ export function ModuleEditorForm({ mode, initialData, classes }: ModuleEditorFor
     } catch {
       window.localStorage.removeItem(draftStorageKey);
     }
-  }, [draftStorageKey]);
+  }, [draftStorageKey, mode]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -123,6 +133,7 @@ export function ModuleEditorForm({ mode, initialData, classes }: ModuleEditorFor
           form: stripFormFiles(form),
           tagsText,
           coverPreview,
+          notification,
           savedAt: new Date().toISOString(),
         };
         window.localStorage.setItem(draftStorageKey, JSON.stringify(draft));
@@ -132,7 +143,7 @@ export function ModuleEditorForm({ mode, initialData, classes }: ModuleEditorFor
     }, 500);
 
     return () => window.clearTimeout(timeout);
-  }, [coverPreview, draftStorageKey, form, tagsText]);
+  }, [coverPreview, draftStorageKey, form, notification, tagsText]);
 
   function updateForm(patch: Partial<FormState>) {
     setForm((current) => ({ ...current, ...patch }));
@@ -167,6 +178,13 @@ function updateLesson(clientId: string, patch: Partial<LessonState>) {
     }));
   }
 
+  function reorderLessons(clientId: string, direction: -1 | 1) {
+    setForm((current) => ({
+      ...current,
+      lessons: reorderByClientId(current.lessons, clientId, direction),
+    }));
+  }
+
   function updateQuestion(clientId: string, patch: Partial<QuestionState>) {
     setForm((current) => ({
       ...current,
@@ -190,6 +208,16 @@ function updateLesson(clientId: string, patch: Partial<LessonState>) {
           options[optionIndex] = value;
           return { ...question, options };
         }),
+      },
+    }));
+  }
+
+  function reorderQuestions(clientId: string, direction: -1 | 1) {
+    setForm((current) => ({
+      ...current,
+      quiz: {
+        ...current.quiz,
+        questions: reorderByClientId(current.quiz.questions, clientId, direction),
       },
     }));
   }
@@ -246,6 +274,11 @@ function updateLesson(clientId: string, patch: Partial<LessonState>) {
           questions: form.quiz.questions.map(stripQuestionState),
         },
         intent,
+        notification: {
+          enabled: intent === 'publish' && notification.enabled,
+          message: notification.message,
+          type: mode === 'create' ? 'publish' : form.quiz.questions.length ? 'quiz_update' : 'update',
+        },
       });
 
       if (!result.ok) {
@@ -257,7 +290,9 @@ function updateLesson(clientId: string, patch: Partial<LessonState>) {
       setSuccess(intent === 'publish' ? 'Modul berhasil dipublikasikan.' : 'Draft modul berhasil disimpan.');
       toast.success(intent === 'publish' ? 'Modul berhasil dipublikasikan.' : 'Draft modul berhasil disimpan.');
       window.localStorage.removeItem(draftStorageKey);
-      if (result.moduleId && mode === 'create') {
+      if (intent === 'publish') {
+        router.replace('/teacher/modules');
+      } else if (result.moduleId && mode === 'create') {
         router.replace(`/teacher/modules/${result.moduleId}/edit`);
       } else {
         router.refresh();
@@ -336,16 +371,20 @@ function updateLesson(clientId: string, patch: Partial<LessonState>) {
           <ContentStep
             lessons={form.lessons}
             updateLesson={updateLesson}
+            reorderLessons={reorderLessons}
             addLesson={() =>
               setForm((current) => ({
                 ...current,
-                lessons: [...current.lessons, createLessonState(current.lessons.length + 1)],
+                lessons: [...current.lessons, createLessonState(getNextOrderIndex(current.lessons))],
               }))
             }
             removeLesson={(clientId) =>
               setForm((current) => ({
                 ...current,
-                lessons: current.lessons.length > 1 ? current.lessons.filter((lesson) => lesson.clientId !== clientId) : current.lessons,
+                lessons:
+                  current.lessons.length > 1
+                    ? renumberByOrder(current.lessons.filter((lesson) => lesson.clientId !== clientId))
+                    : current.lessons,
               }))
             }
           />
@@ -357,12 +396,13 @@ function updateLesson(clientId: string, patch: Partial<LessonState>) {
             updateQuiz={(quizPatch) => setForm((current) => ({ ...current, quiz: normalizeQuizPatch(current.quiz, quizPatch) }))}
             updateQuestion={updateQuestion}
             updateQuestionOption={updateQuestionOption}
+            reorderQuestions={reorderQuestions}
             addQuestion={() =>
               setForm((current) => ({
                 ...current,
                 quiz: {
                   ...current.quiz,
-                  questions: [...current.quiz.questions, createQuestionState(undefined, current.quiz.questions.length + 1)],
+                  questions: [...current.quiz.questions, createQuestionState(undefined, getNextOrderIndex(current.quiz.questions))],
                 },
               }))
             }
@@ -373,7 +413,7 @@ function updateLesson(clientId: string, patch: Partial<LessonState>) {
                   ...current.quiz,
                   questions:
                     current.quiz.questions.length > 1
-                      ? current.quiz.questions.filter((question) => question.clientId !== clientId)
+                      ? renumberByOrder(current.quiz.questions.filter((question) => question.clientId !== clientId))
                       : current.quiz.questions,
                 },
               }))
@@ -389,6 +429,8 @@ function updateLesson(clientId: string, patch: Partial<LessonState>) {
             selectedClass={selectedClass}
             filledLessons={filledLessons.length}
             filledQuestions={filledQuestions.length}
+            notification={notification}
+            onNotificationChange={setNotification}
           />
         )}
       </div>
@@ -526,14 +568,17 @@ function InfoStep({
               className={inputClass}
             />
           </Field>
-          <Field label="Order Index">
+          <Field label="Urutan Modul">
             <input
               type="number"
               min={1}
               value={form.orderIndex}
-              onChange={(event) => updateForm({ orderIndex: Number(event.target.value) })}
+              readOnly
               className={inputClass}
             />
+            <p className="mt-2 text-xs leading-5 text-muted-foreground">
+              Diatur otomatis. Ubah urutan dari daftar modul dengan tombol Naik/Turun.
+            </p>
           </Field>
           <Field label="Status">
             <select
@@ -598,25 +643,16 @@ function InfoStep({
 function ContentStep({
   lessons,
   updateLesson,
+  reorderLessons,
   addLesson,
   removeLesson,
 }: {
   lessons: LessonState[];
   updateLesson: (clientId: string, patch: Partial<LessonState>) => void;
+  reorderLessons: (clientId: string, direction: -1 | 1) => void;
   addLesson: () => void;
   removeLesson: (clientId: string) => void;
 }) {
-  function moveLesson(clientId: string, direction: -1 | 1) {
-    const index = lessons.findIndex((lesson) => lesson.clientId === clientId);
-    const targetIndex = index + direction;
-    if (index < 0 || targetIndex < 0 || targetIndex >= lessons.length) return;
-
-    const nextLessons = [...lessons];
-    const [moved] = nextLessons.splice(index, 1);
-    nextLessons.splice(targetIndex, 0, moved);
-    nextLessons.forEach((lesson, lessonIndex) => updateLesson(lesson.clientId, { orderIndex: lessonIndex + 1 }));
-  }
-
   return (
     <SectionCard>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -636,10 +672,10 @@ function ContentStep({
             <div className="mb-4 flex items-center justify-between gap-3">
               <p className="font-bold text-ink">Lesson {index + 1}</p>
               <div className="flex gap-2">
-                <Button type="button" variant="ghost" size="sm" onClick={() => moveLesson(lesson.clientId, -1)} disabled={index === 0}>
+                <Button type="button" variant="ghost" size="sm" onClick={() => reorderLessons(lesson.clientId, -1)} disabled={index === 0}>
                   Naik
                 </Button>
-                <Button type="button" variant="ghost" size="sm" onClick={() => moveLesson(lesson.clientId, 1)} disabled={index === lessons.length - 1}>
+                <Button type="button" variant="ghost" size="sm" onClick={() => reorderLessons(lesson.clientId, 1)} disabled={index === lessons.length - 1}>
                   Turun
                 </Button>
                 <Button type="button" variant="ghost" size="sm" onClick={() => window.confirm('Hapus lesson ini?') && removeLesson(lesson.clientId)}>
@@ -657,12 +693,12 @@ function ContentStep({
                   placeholder="Contoh: Pengertian Tawazun"
                 />
               </Field>
-              <Field label="Order Index">
+              <Field label="Urutan">
                 <input
                   type="number"
                   min={1}
                   value={lesson.orderIndex}
-                  onChange={(event) => updateLesson(lesson.clientId, { orderIndex: Number(event.target.value) })}
+                  readOnly
                   className={inputClass}
                 />
               </Field>
@@ -725,6 +761,7 @@ function QuizStep({
   updateQuiz,
   updateQuestion,
   updateQuestionOption,
+  reorderQuestions,
   addQuestion,
   removeQuestion,
 }: {
@@ -732,6 +769,7 @@ function QuizStep({
   updateQuiz: (patch: Partial<FormState['quiz']>) => void;
   updateQuestion: (clientId: string, patch: Partial<QuestionState>) => void;
   updateQuestionOption: (clientId: string, optionIndex: number, value: string) => void;
+  reorderQuestions: (clientId: string, direction: -1 | 1) => void;
   addQuestion: () => void;
   removeQuestion: (clientId: string) => void;
 }) {
@@ -829,10 +867,18 @@ function QuizStep({
           <div key={question.clientId} className="rounded-2xl border border-border bg-white p-4">
             <div className="mb-4 flex items-center justify-between gap-3">
               <p className="font-bold text-ink">Pertanyaan {index + 1}</p>
-              <Button type="button" variant="ghost" size="sm" onClick={() => window.confirm('Hapus pertanyaan ini?') && removeQuestion(question.clientId)}>
-                <Trash2 className="h-4 w-4" />
-                Hapus
-              </Button>
+              <div className="flex gap-2">
+                <Button type="button" variant="ghost" size="sm" onClick={() => reorderQuestions(question.clientId, -1)} disabled={index === 0}>
+                  Naik
+                </Button>
+                <Button type="button" variant="ghost" size="sm" onClick={() => reorderQuestions(question.clientId, 1)} disabled={index === quiz.questions.length - 1}>
+                  Turun
+                </Button>
+                <Button type="button" variant="ghost" size="sm" onClick={() => window.confirm('Hapus pertanyaan ini?') && removeQuestion(question.clientId)}>
+                  <Trash2 className="h-4 w-4" />
+                  Hapus
+                </Button>
+              </div>
             </div>
             <div className="grid gap-4">
               <Field label="Question Text">
@@ -860,12 +906,12 @@ function QuizStep({
                     <option value="true_false">True / False</option>
                   </select>
                 </Field>
-                <Field label="Order Index">
+                <Field label="Urutan">
                   <input
                     type="number"
                     min={1}
                     value={question.orderIndex}
-                    onChange={(event) => updateQuestion(question.clientId, { orderIndex: Number(event.target.value) })}
+                    readOnly
                     className={inputClass}
                   />
                 </Field>
@@ -931,6 +977,8 @@ function SummaryStep({
   selectedClass,
   filledLessons,
   filledQuestions,
+  notification,
+  onNotificationChange,
 }: {
   form: FormState;
   tags: string[];
@@ -938,7 +986,11 @@ function SummaryStep({
   selectedClass?: TeacherClassOption;
   filledLessons: number;
   filledQuestions: number;
+  notification: NotificationState;
+  onNotificationChange: (value: NotificationState) => void;
 }) {
+  const defaultMessage = `Modul baru ${form.title || 'ini'} telah tersedia.`;
+
   return (
     <div className="grid gap-6 xl:grid-cols-[1fr_0.42fr]">
       <SectionCard>
@@ -957,6 +1009,30 @@ function SummaryStep({
           <ReadinessItem ready={filledLessons >= 1} label="Minimal 1 lesson" />
           <ReadinessItem ready={Boolean(form.quiz.title.trim())} label="Quiz tersedia" />
           <ReadinessItem ready={filledQuestions >= 1} label="Minimal 1 question" />
+        </div>
+        <div className="mt-5 rounded-2xl border border-primary/10 bg-mint/30 p-4">
+          <label className="flex items-start gap-3">
+            <input
+              type="checkbox"
+              checked={notification.enabled}
+              onChange={(event) => onNotificationChange({ ...notification, enabled: event.target.checked })}
+              className="mt-1 h-5 w-5 accent-primary"
+            />
+            <span>
+              <span className="block font-bold text-ink">Kirim pemberitahuan ke siswa</span>
+              <span className="mt-1 block text-sm leading-6 text-muted-foreground">
+                Jika aktif, siswa akan melihat pengumuman setelah modul dipublikasikan atau diperbarui.
+              </span>
+            </span>
+          </label>
+          <Field label="Kalimat pemberitahuan" className="mt-4 block">
+            <textarea
+              value={notification.message}
+              onChange={(event) => onNotificationChange({ ...notification, message: event.target.value })}
+              placeholder={defaultMessage}
+              className={cn(inputClass, 'min-h-24 resize-none py-3')}
+            />
+          </Field>
         </div>
         <div className="mt-5 rounded-2xl border border-border bg-white p-4">
           <p className="font-bold text-ink">Deskripsi</p>
@@ -1158,6 +1234,34 @@ function stripQuestionState(question: QuestionState): ModuleEditorQuestion {
     points: question.points,
     orderIndex: question.orderIndex,
   };
+}
+
+function getNextOrderIndex(items: { orderIndex: number }[]) {
+  return Math.max(0, ...items.map((item) => Number(item.orderIndex) || 0)) + 1;
+}
+
+function reorderByClientId<T extends { clientId: string; orderIndex: number }>(
+  items: T[],
+  clientId: string,
+  direction: -1 | 1,
+) {
+  const sortedItems = [...items].sort((first, second) => first.orderIndex - second.orderIndex);
+  const index = sortedItems.findIndex((item) => item.clientId === clientId);
+  const targetIndex = index + direction;
+  if (index < 0 || targetIndex < 0 || targetIndex >= sortedItems.length) return items;
+
+  const [moved] = sortedItems.splice(index, 1);
+  sortedItems.splice(targetIndex, 0, moved);
+
+  return renumberByOrder(sortedItems);
+}
+
+function renumberByOrder<T extends { orderIndex: number }>(items: T[]) {
+  return items
+    .map((item, index) => ({
+      ...item,
+      orderIndex: index + 1,
+    }));
 }
 
 function parseTags(value: string) {

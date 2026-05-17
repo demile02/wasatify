@@ -21,6 +21,8 @@ type ReflectionFormProps = {
 };
 
 const maxLength = 500;
+const minReflectionLength = 30;
+const minActionLength = 20;
 
 export function ReflectionForm({ modules, selectedModuleId, existingReflection }: ReflectionFormProps) {
   const firstAvailableModule = selectedModuleId ?? modules[0]?.id ?? '';
@@ -36,7 +38,9 @@ export function ReflectionForm({ modules, selectedModuleId, existingReflection }
     [moduleId, modules],
   );
   const isOverLimit = reflectionText.length > maxLength || actionPlan.length > maxLength;
-  const canSubmit = Boolean(moduleId && reflectionText.trim().length >= 30 && actionPlan.trim().length >= 20 && !isOverLimit && !isPending);
+  const reflectionTooShort = reflectionText.trim().length < minReflectionLength;
+  const actionTooShort = actionPlan.trim().length < minActionLength;
+  const canSubmit = Boolean(moduleId && !reflectionTooShort && !actionTooShort && !isOverLimit && !isPending);
 
   if (!modules.length) {
     return (
@@ -49,6 +53,20 @@ export function ReflectionForm({ modules, selectedModuleId, existingReflection }
 
   function submitReflection() {
     setError(null);
+
+    if (!canSubmit) {
+      const message =
+        reflectionTooShort
+          ? 'Refleksi minimal 30 karakter.'
+          : actionTooShort
+            ? 'Aksi nyata minimal 20 karakter.'
+            : isOverLimit
+              ? 'Refleksi dan aksi nyata maksimal 500 karakter.'
+              : 'Pilih modul terlebih dahulu.';
+      setError(message);
+      toast.warning(message);
+      return;
+    }
 
     startTransition(async () => {
       const result = await submitReflectionAction({
@@ -111,6 +129,7 @@ export function ReflectionForm({ modules, selectedModuleId, existingReflection }
         placeholder="Tuliskan refleksi kamu di sini..."
         value={reflectionText}
         onChange={setReflectionText}
+        minLength={minReflectionLength}
       />
 
       <ReflectionField
@@ -120,6 +139,7 @@ export function ReflectionForm({ modules, selectedModuleId, existingReflection }
         placeholder="Tuliskan aksi nyata yang akan kamu lakukan..."
         value={actionPlan}
         onChange={setActionPlan}
+        minLength={minActionLength}
       />
 
       {error && (
@@ -128,7 +148,7 @@ export function ReflectionForm({ modules, selectedModuleId, existingReflection }
         </div>
       )}
 
-      <Button type="button" className="w-full" disabled={!canSubmit} onClick={submitReflection}>
+      <Button type="button" className="w-full" disabled={isPending || !moduleId} onClick={submitReflection}>
         {isPending ? 'Menyimpan...' : hasSaved ? 'Perbarui Refleksi' : 'Simpan Refleksi'}
       </Button>
 
@@ -143,6 +163,7 @@ function ReflectionField({
   placeholder,
   value,
   onChange,
+  minLength,
 }: {
   icon: typeof PenLine;
   title: string;
@@ -150,8 +171,10 @@ function ReflectionField({
   placeholder: string;
   value: string;
   onChange: (value: string) => void;
+  minLength: number;
 }) {
   const isOverLimit = value.length > maxLength;
+  const isTooShort = value.trim().length < minLength;
 
   return (
     <SectionCard>
@@ -170,9 +193,14 @@ function ReflectionField({
         placeholder={placeholder}
         className="min-h-36 resize-none rounded-2xl bg-white text-sm leading-6 focus-visible:ring-primary/15"
       />
-      <p className={cn('mt-2 text-right text-xs text-muted-foreground', isOverLimit && 'font-bold text-red-600')}>
-        {value.length} / {maxLength}
-      </p>
+      <div className="mt-2 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+        <p className={cn('text-xs font-semibold text-muted-foreground', isTooShort && 'text-gold', isOverLimit && 'text-red-600')}>
+          Minimal {minLength} karakter.
+        </p>
+        <p className={cn('text-right text-xs text-muted-foreground', (isTooShort || isOverLimit) && 'font-bold', isOverLimit && 'text-red-600')}>
+          {value.length} / {maxLength}
+        </p>
+      </div>
     </SectionCard>
   );
 }
