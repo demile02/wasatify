@@ -2,14 +2,27 @@
 
 import type { ReactNode } from 'react';
 import { useMemo, useState, useTransition } from 'react';
-import { BookOpen, Eye, MoreVertical, PencilLine, Plus, Search, Send, Undo2 } from 'lucide-react';
+import { Archive, BookOpen, Copy, Eye, MoreVertical, PencilLine, Plus, Search, Send, Trash2, Undo2 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { EmptyState } from '@/components/shared/empty-state';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { toggleTeacherModulePublishAction } from '@/lib/teacher/actions';
+import {
+  archiveTeacherModuleAction,
+  deleteTeacherModuleAction,
+  duplicateTeacherModuleAction,
+  toggleTeacherModulePublishAction,
+} from '@/lib/teacher/actions';
 import type { TeacherModuleListItem, TeacherModuleStatus } from '@/lib/teacher/data';
 import { cn } from '@/lib/utils';
 
@@ -18,6 +31,7 @@ type TeacherModulesTableProps = {
 };
 
 type StatusFilter = 'all' | TeacherModuleStatus;
+type ConfirmAction = 'archive' | 'delete';
 
 const statusFilters: { value: StatusFilter; label: string }[] = [
   { value: 'all', label: 'Semua' },
@@ -32,6 +46,7 @@ export function TeacherModulesTable({ modules }: TeacherModulesTableProps) {
   const [category, setCategory] = useState('all');
   const [status, setStatus] = useState<StatusFilter>('all');
   const [pendingModuleId, setPendingModuleId] = useState<string | null>(null);
+  const [confirmTarget, setConfirmTarget] = useState<{ action: ConfirmAction; moduleItem: TeacherModuleListItem } | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const categories = useMemo(() => {
@@ -90,6 +105,51 @@ export function TeacherModulesTable({ modules }: TeacherModulesTableProps) {
       }
 
       toast.success(result.status === 'published' ? 'Modul dipublikasikan.' : 'Modul dikembalikan ke draft.');
+      router.refresh();
+    });
+  }
+
+  function duplicateModule(moduleItem: TeacherModuleListItem) {
+    setPendingModuleId(moduleItem.id);
+    startTransition(async () => {
+      const result = await duplicateTeacherModuleAction(moduleItem.id);
+
+      setPendingModuleId(null);
+
+      if (!result.ok) {
+        toast.error(result.error ?? 'Modul belum berhasil diduplikasi.');
+        return;
+      }
+
+      toast.success('Modul berhasil diduplikasi sebagai draft.');
+      router.refresh();
+    });
+  }
+
+  function runConfirmedAction() {
+    if (!confirmTarget) return;
+
+    const { action, moduleItem } = confirmTarget;
+    setPendingModuleId(moduleItem.id);
+
+    startTransition(async () => {
+      const result =
+        action === 'archive'
+          ? await archiveTeacherModuleAction(moduleItem.id)
+          : await deleteTeacherModuleAction(moduleItem.id);
+
+      setPendingModuleId(null);
+      setConfirmTarget(null);
+
+      if (!result.ok) {
+        toast.error(
+          result.error ??
+            (action === 'archive' ? 'Modul belum berhasil diarsipkan.' : 'Modul belum berhasil dihapus.'),
+        );
+        return;
+      }
+
+      toast.success(action === 'archive' ? 'Modul berhasil diarsipkan.' : 'Modul berhasil dihapus.');
       router.refresh();
     });
   }
@@ -194,13 +254,31 @@ export function TeacherModulesTable({ modules }: TeacherModulesTableProps) {
                       </Button>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="outline" size="icon" className="h-9 w-9 rounded-xl">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-9 w-9 rounded-xl"
+                            disabled={isPending && pendingModuleId === moduleItem.id}
+                          >
                             <MoreVertical className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem disabled>Duplikasi modul</DropdownMenuItem>
-                          <DropdownMenuItem disabled>Arsipkan modul</DropdownMenuItem>
+                          <DropdownMenuItem onSelect={() => duplicateModule(moduleItem)}>
+                            <Copy className="mr-2 h-4 w-4" />
+                            Duplikasi modul
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onSelect={() => setConfirmTarget({ action: 'archive', moduleItem })}>
+                            <Archive className="mr-2 h-4 w-4" />
+                            Arsipkan modul
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onSelect={() => setConfirmTarget({ action: 'delete', moduleItem })}
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Hapus Modul
+                          </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
@@ -218,6 +296,51 @@ export function TeacherModulesTable({ modules }: TeacherModulesTableProps) {
           description="Coba ubah kata kunci, kategori, atau filter status."
         />
       )}
+
+      <Dialog open={Boolean(confirmTarget)} onOpenChange={(open) => !open && setConfirmTarget(null)}>
+        <DialogContent className="rounded-3xl">
+          <DialogHeader>
+            <DialogTitle>{confirmTarget?.action === 'delete' ? 'Hapus modul?' : 'Arsipkan modul ini?'}</DialogTitle>
+            <DialogDescription>
+              {confirmTarget?.action === 'delete'
+                ? 'Tindakan ini akan menghapus modul beserta konten, kuis, dan pertanyaan terkait. Tindakan ini tidak bisa dibatalkan.'
+                : 'Siswa tidak akan melihat modul yang diarsipkan.'}
+            </DialogDescription>
+          </DialogHeader>
+          {confirmTarget ? (
+            <div className="rounded-2xl border border-border bg-mint/30 p-4">
+              <p className="font-bold text-ink">{confirmTarget.moduleItem.title}</p>
+              <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
+                {confirmTarget.moduleItem.description}
+              </p>
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setConfirmTarget(null)}
+              disabled={Boolean(isPending && pendingModuleId)}
+            >
+              Batal
+            </Button>
+            <Button
+              type="button"
+              variant={confirmTarget?.action === 'delete' ? 'destructive' : 'default'}
+              onClick={runConfirmedAction}
+              disabled={Boolean(isPending && pendingModuleId)}
+            >
+              {confirmTarget?.action === 'delete'
+                ? pendingModuleId
+                  ? 'Menghapus...'
+                  : 'Hapus Modul'
+                : pendingModuleId
+                  ? 'Mengarsipkan...'
+                  : 'Arsipkan Modul'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
