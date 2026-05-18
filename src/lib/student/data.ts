@@ -5,6 +5,7 @@ import {
   type ModuleProgressRow,
   type PublishedModuleRow,
 } from '@/lib/modules/status';
+import { formatDateTime } from '@/lib/date';
 import { getStudentClassTeacherContext } from '@/lib/scope';
 import { getEffectiveStreak } from '@/lib/student/streak';
 import { createClient, isSupabaseConfigured } from '@/lib/supabase/server';
@@ -140,7 +141,10 @@ export async function getStudentDashboardData(student?: Profile | string): Promi
           published_at: null,
         },
       ],
-      activities: demoStudentActivities,
+      activities: demoStudentActivities.map((activity, index) => ({
+        ...activity,
+        time: formatDateTime(new Date(Date.now() - index * 60 * 60 * 1000)),
+      })),
       isDemo: true,
     };
   }
@@ -315,7 +319,7 @@ async function getRecentActivities(
     const quiz = quizTitleById.get(attempt.quiz_id);
     activityItems.push({
       title: quiz ? `Mengerjakan kuis "${quiz.title}"` : 'Mengerjakan kuis',
-      time: formatRelativeTime(attempt.submitted_at ?? attempt.created_at),
+      time: formatDateTime(attempt.submitted_at ?? attempt.created_at),
       type: 'quiz',
       sortAt: attempt.submitted_at ?? attempt.created_at,
     });
@@ -325,7 +329,7 @@ async function getRecentActivities(
     const moduleTitle = moduleTitleById.get(reflection.module_id);
     activityItems.push({
       title: moduleTitle ? `Mengumpulkan refleksi "${moduleTitle}"` : 'Mengumpulkan refleksi',
-      time: formatRelativeTime(reflection.created_at),
+      time: formatDateTime(reflection.created_at),
       type: 'reflection',
       sortAt: reflection.created_at,
     });
@@ -336,7 +340,7 @@ async function getRecentActivities(
     const isCompleted = progress.status === 'completed' || progress.completed_at || progress.progress_percent === 100;
     activityItems.push({
       title: `${isCompleted ? 'Menyelesaikan' : 'Melanjutkan'} modul${moduleTitle ? ` "${moduleTitle}"` : ''}`,
-      time: formatRelativeTime(progress.completed_at ?? progress.updated_at ?? progress.created_at),
+      time: formatDateTime(progress.completed_at ?? progress.updated_at ?? progress.created_at),
       type: 'module',
       sortAt: progress.completed_at ?? progress.updated_at ?? progress.created_at,
     });
@@ -350,29 +354,4 @@ async function getRecentActivities(
       time: activity.time,
       type: activity.type,
     }));
-}
-
-function formatRelativeTime(value?: string | null) {
-  if (!value) return 'Baru saja';
-
-  const timestamp = new Date(value).getTime();
-  if (Number.isNaN(timestamp)) return 'Baru saja';
-
-  const diffMs = Date.now() - timestamp;
-  const diffMinutes = Math.max(Math.floor(diffMs / 60000), 0);
-
-  if (diffMinutes < 1) return 'Baru saja';
-  if (diffMinutes < 60) return `${diffMinutes} menit lalu`;
-
-  const diffHours = Math.floor(diffMinutes / 60);
-  if (diffHours < 24) return `${diffHours} jam lalu`;
-
-  const diffDays = Math.floor(diffHours / 24);
-  if (diffDays < 7) return `${diffDays} hari lalu`;
-
-  return new Intl.DateTimeFormat('id-ID', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  }).format(new Date(value));
 }

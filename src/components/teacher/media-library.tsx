@@ -18,6 +18,7 @@ import { StatCard } from '@/components/shared/stat-card';
 import { Button } from '@/components/ui/button';
 import { createClient } from '@/lib/supabase/client';
 import { MediaUploadDialog } from '@/components/teacher/media-upload-dialog';
+import { formatDateTime } from '@/lib/date';
 import type { TeacherMediaData, TeacherMediaFileType, TeacherMediaItem } from '@/lib/teacher/media';
 
 type MediaLibraryProps = {
@@ -129,7 +130,7 @@ export function MediaLibrary({ data, teacherId }: MediaLibraryProps) {
 
                 <div className="mt-4 grid grid-cols-2 gap-2 text-xs text-muted-foreground">
                   <span>{formatSize(item.sizeBytes)}</span>
-                  <span className="text-right">{formatDate(item.createdAt)}</span>
+                  <span className="text-right">{formatDateTime(item.createdAt)}</span>
                 </div>
 
                 <div className="mt-4 flex flex-wrap gap-2">
@@ -186,12 +187,4 @@ function formatSize(value: number | null) {
   if (!value) return '-';
   if (value < 1024 * 1024) return `${Math.round(value / 1024)} KB`;
   return `${(value / 1024 / 1024).toFixed(1)} MB`;
-}
-
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat('id-ID', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  }).format(new Date(value));
 }

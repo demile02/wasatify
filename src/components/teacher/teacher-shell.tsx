@@ -3,7 +3,6 @@
 import type { FormEvent, ReactNode } from 'react';
 import { useRef } from 'react';
 import {
-  Bell,
   BookOpen,
   ClipboardCheck,
   FileText,
@@ -21,15 +20,18 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { TeacherMobileBottomNav } from '@/components/layout/teacher-mobile-bottom-nav';
 import { AppLogo } from '@/components/shared/app-logo';
+import { NotificationBell } from '@/components/shared/notification-bell';
 import { ProfileMenu } from '@/components/shared/profile-menu';
 import { Button } from '@/components/ui/button';
 import { TeacherMobileQuickActions } from '@/components/teacher/teacher-mobile-quick-actions';
 import { teacherNavigation } from '@/lib/constants/navigation';
+import type { NotificationItem } from '@/lib/notifications';
 import type { Profile } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 type TeacherShellProps = {
   profile: Profile;
+  notifications?: NotificationItem[];
   children: ReactNode;
 };
 
@@ -47,7 +49,7 @@ const iconMap = {
   Settings,
 };
 
-export function TeacherShell({ profile, children }: TeacherShellProps) {
+export function TeacherShell({ profile, notifications = [], children }: TeacherShellProps) {
   const pathname = usePathname() ?? '';
   const desktopSearchRef = useRef<HTMLInputElement>(null);
   const mobileSearchRef = useRef<HTMLInputElement>(null);
@@ -129,10 +131,7 @@ export function TeacherShell({ profile, children }: TeacherShellProps) {
               />
             </form>
 
-            <button className="relative ml-auto grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-border bg-white text-foreground shadow-sm transition hover:bg-mint md:ml-0 md:h-11 md:w-11">
-              <Bell className="h-5 w-5" />
-              <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-gold" />
-            </button>
+            <NotificationBell items={notifications} />
 
             <ProfileMenu profile={profile} roleLabel="Guru" profileHref="/teacher/settings" />
           </div>
@@ -151,7 +150,7 @@ export function TeacherShell({ profile, children }: TeacherShellProps) {
           </div>
         </header>
 
-        <main className="min-w-0 overflow-x-hidden px-5 py-6 pb-36 sm:px-8 lg:pb-10">
+        <main className="min-w-0 overflow-x-hidden px-5 py-6 pb-teacher-app-bottom sm:px-8 lg:pb-10">
           <div className="mx-auto min-w-0 max-w-7xl">{children}</div>
         </main>
       </div>

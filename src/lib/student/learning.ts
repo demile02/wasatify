@@ -70,6 +70,8 @@ export type StudentQuizAttemptInfo = {
   bestScore: number | null;
   latestScore: number | null;
   latestAttemptId: string | null;
+  hasPassed: boolean;
+  hasReflection: boolean;
 };
 
 export type QuizReviewQuestion = {
@@ -318,6 +320,8 @@ export async function getQuizLearningData(moduleId: string, studentId?: string):
         bestScore: null,
         latestScore: null,
         latestAttemptId: null,
+        hasPassed: false,
+        hasReflection: false,
       },
       isDemo: true,
     };
@@ -365,6 +369,8 @@ export async function getQuizLearningData(moduleId: string, studentId?: string):
     const bestScore = attempts.length
       ? Math.max(...attempts.map((attempt) => Math.round(Number(attempt.score ?? 0))))
       : null;
+    const hasPassed = attempts.some((attempt) => Number(attempt.score ?? 0) >= (quizRow.passing_score ?? 70));
+    const hasReflection = studentId ? await hasStudentReflection(studentId, moduleItem.id) : false;
 
     return {
       module: moduleItem,
@@ -387,6 +393,8 @@ export async function getQuizLearningData(moduleId: string, studentId?: string):
         bestScore,
         latestScore: latestAttempt?.score === null || latestAttempt?.score === undefined ? null : Math.round(Number(latestAttempt.score)),
         latestAttemptId: latestAttempt?.id ?? null,
+        hasPassed,
+        hasReflection,
       },
       isDemo: false,
     };
@@ -499,6 +507,20 @@ async function getQuizReviewQuestions(quizId: string) {
 
   if (error) throw error;
   return ((data ?? []) as QuizQuestionRow[]).map(mapQuizQuestionRow);
+}
+
+async function hasStudentReflection(studentId: string, moduleId: string) {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('reflections')
+    .select('id, reflection_text, action_plan')
+    .eq('student_id', studentId)
+    .eq('module_id', moduleId)
+    .maybeSingle<{ id: string; reflection_text: string | null; action_plan: string | null }>();
+
+  if (error || !data) return false;
+
+  return (data.reflection_text ?? '').trim().length >= 30 && (data.action_plan ?? '').trim().length >= 20;
 }
 
 async function findStudentModule(moduleId: string, student?: Profile | string) {

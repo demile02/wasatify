@@ -19,6 +19,7 @@ import { StatCard } from '@/components/shared/stat-card';
 import { Button } from '@/components/ui/button';
 import { TeacherModuleCompletionChart } from '@/components/teacher/teacher-module-completion-chart';
 import { requireTeacher } from '@/lib/auth/server';
+import { formatDateTime } from '@/lib/date';
 import { demoTeacherProfile } from '@/lib/demo/teacher';
 import { getTeacherDashboardData, type TeacherActivity } from '@/lib/teacher/data';
 import { cn } from '@/lib/utils';
@@ -149,6 +150,9 @@ export default async function TeacherDashboardPage() {
                     <PriorityBadge priority={announcement.priority} />
                   </div>
                   <p className="mt-2 line-clamp-2 text-sm leading-6 text-muted-foreground">{announcement.content}</p>
+                  <p className="mt-2 text-xs font-semibold text-primary">
+                    {formatDateTime(announcement.publishedAt ?? announcement.createdAt)}
+                  </p>
                 </div>
               ))}
             </div>
@@ -191,7 +195,7 @@ function ActivityItem({ activity }: { activity: TeacherActivity }) {
         <span className="block text-sm font-bold text-ink">{activity.title}</span>
         <span className="mt-1 block text-xs leading-5 text-muted-foreground">{activity.description}</span>
       </span>
-      <span className="shrink-0 text-xs font-semibold text-muted-foreground">{formatDate(activity.date)}</span>
+      <span className="shrink-0 text-xs font-semibold text-muted-foreground">{formatDateTime(activity.date)}</span>
     </div>
   );
 }
@@ -223,11 +227,4 @@ function PriorityBadge({ priority }: { priority: 'low' | 'normal' | 'high' }) {
       {priority === 'high' ? 'Penting' : priority === 'low' ? 'Rendah' : 'Info'}
     </span>
   );
-}
-
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat('id-ID', {
-    day: '2-digit',
-    month: 'short',
-  }).format(new Date(value));
 }

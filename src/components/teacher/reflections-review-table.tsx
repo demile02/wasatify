@@ -9,6 +9,7 @@ import { StatCard } from '@/components/shared/stat-card';
 import { StatusBadge } from '@/components/shared/status-badge';
 import { Button } from '@/components/ui/button';
 import { ReflectionReviewDialog } from '@/components/teacher/reflection-review-dialog';
+import { formatDateTime } from '@/lib/date';
 import type { TeacherReflectionItem, TeacherReflectionsData } from '@/lib/teacher/reflections';
 
 type ReflectionsReviewTableProps = {
@@ -122,7 +123,10 @@ export function ReflectionsReviewTable({ data }: ReflectionsReviewTableProps) {
                     <td className="py-4 pr-4 align-top">
                       <p className="font-bold text-ink">{reflection.studentName}</p>
                       <p className="mt-1 text-xs text-muted-foreground">{reflection.className}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">{formatDate(reflection.createdAt)}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">{formatDateTime(reflection.createdAt)}</p>
+                      {reflection.reviewedAt && (
+                        <p className="mt-1 text-xs text-primary">Ditinjau {formatDateTime(reflection.reviewedAt)}</p>
+                      )}
                     </td>
                     <td className="px-4 py-4 align-top font-semibold text-foreground">{reflection.moduleTitle}</td>
                     <td className="px-4 py-4 align-top text-muted-foreground">{truncate(reflection.reflectionText, 120)}</td>
@@ -197,12 +201,4 @@ function FilterSelect({
 
 function truncate(value: string, maxLength: number) {
   return value.length > maxLength ? `${value.slice(0, maxLength - 1)}...` : value;
-}
-
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat('id-ID', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  }).format(new Date(value));
 }

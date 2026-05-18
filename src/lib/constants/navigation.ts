@@ -12,7 +12,7 @@ export const publicNavigation: NavigationItem[] = [
 export const studentNavigation: NavigationItem[] = [
   { label: 'Beranda', href: '/student/dashboard', icon: 'Home' },
   { label: 'Modul Belajar', href: '/student/modules', icon: 'BookOpen' },
-  { label: 'Kuis', href: '/student/modules/islam-wasathiyah-pengantar/quiz', icon: 'ClipboardCheck' },
+  { label: 'Kuis', href: '/student/quizzes', icon: 'ClipboardCheck' },
   { label: 'Tugas', href: '/student/tasks', icon: 'ClipboardList' },
   { label: 'Refleksi Diri', href: '/student/reflection', icon: 'MessageSquareText' },
   { label: 'Progress', href: '/student/progress', icon: 'BarChart3' },

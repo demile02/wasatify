@@ -2,6 +2,7 @@
 
 import { Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { formatDateTime } from '@/lib/date';
 import type { TeacherReportStudentRow } from '@/lib/teacher/analytics';
 
 type ExportReportButtonProps = {
@@ -21,7 +22,7 @@ export function ExportReportButton({ rows, fileName = 'wasatify-report.csv' }: E
           row.completedModules,
           row.averageQuizScore,
           row.reflectionCount,
-          escapeCsv(row.lastActiveAt ?? ''),
+          escapeCsv(row.lastActiveAt ? formatDateTime(row.lastActiveAt) : ''),
         ].join(','),
       ),
     ];

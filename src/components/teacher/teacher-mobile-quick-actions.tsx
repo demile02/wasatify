@@ -28,13 +28,13 @@ export function TeacherMobileQuickActions() {
       <SheetTrigger asChild>
         <Button
           size="icon"
-          className="fixed bottom-24 right-5 z-[60] h-14 w-14 rounded-full shadow-soft lg:hidden"
+          className="safe-bottom-fab fixed right-5 z-[60] h-14 w-14 rounded-full shadow-soft lg:hidden"
           aria-label="Buka aksi cepat guru"
         >
           <Plus className="h-6 w-6" />
         </Button>
       </SheetTrigger>
-      <SheetContent side="bottom" className="rounded-t-3xl border-primary/10 pb-28">
+      <SheetContent side="bottom" className="safe-bottom-sheet rounded-t-3xl border-primary/10">
         <SheetHeader className="text-left">
           <SheetTitle>Aksi Cepat</SheetTitle>
           <SheetDescription>Akses pintas untuk pekerjaan guru yang paling sering dipakai.</SheetDescription>

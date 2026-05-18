@@ -19,6 +19,7 @@ import { toast } from 'sonner';
 import { ProgressBar } from '@/components/shared/progress-bar';
 import { SectionCard } from '@/components/shared/section-card';
 import { Button } from '@/components/ui/button';
+import { formatDateTime } from '@/lib/date';
 import { createClient, isSupabaseConfigured } from '@/lib/supabase/client';
 import { saveTeacherModuleAction, type UploadedAssetInput } from '@/lib/teacher/module-actions';
 import type {
@@ -1355,12 +1356,7 @@ function validateForm(intent: 'draft' | 'publish', form: FormState) {
 }
 
 function formatDraftDate(value: string) {
-  return new Intl.DateTimeFormat('id-ID', {
-    day: 'numeric',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(value));
+  return formatDateTime(value);
 }
 
 function slugify(value: string) {

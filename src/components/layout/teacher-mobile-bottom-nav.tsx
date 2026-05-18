@@ -17,7 +17,7 @@ export function TeacherMobileBottomNav() {
   const pathname = usePathname() ?? '';
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-[70] grid grid-cols-5 border-t border-primary/10 bg-white px-2 py-2 shadow-soft lg:hidden">
+    <nav className="safe-bottom-nav fixed inset-x-0 bottom-0 z-[70] grid grid-cols-5 border-t border-primary/10 bg-white px-2 pt-2 shadow-soft lg:hidden">
       {mobileTeacherItems.map((item) => {
         const Icon = item.icon;
         const active = isActivePath(pathname, item.href);

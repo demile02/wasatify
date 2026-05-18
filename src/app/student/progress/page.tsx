@@ -8,6 +8,7 @@ import { StatCard } from '@/components/shared/stat-card';
 import { StatusBadge } from '@/components/shared/status-badge';
 import { Button } from '@/components/ui/button';
 import { requireStudent } from '@/lib/auth/server';
+import { formatDateTime } from '@/lib/date';
 import { demoStudentProfile } from '@/lib/demo/student';
 import { getStudentProgressData, type ProgressActivity } from '@/lib/student/progress';
 
@@ -124,7 +125,7 @@ export default async function StudentProgressPage() {
                   <div className="min-w-0 flex-1">
                     <p className="line-clamp-1 font-bold text-ink">{moduleItem.title}</p>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      Selesai {moduleItem.completedAt ? formatDate(moduleItem.completedAt) : 'tersimpan'}
+                      Selesai {moduleItem.completedAt ? formatDateTime(moduleItem.completedAt) : 'tersimpan'}
                     </p>
                   </div>
                 </Link>
@@ -238,18 +239,11 @@ function ActivityItem({ activity }: { activity: ProgressActivity }) {
         <p className="text-sm font-bold text-ink">{activity.title}</p>
         <p className="mt-1 text-xs leading-5 text-muted-foreground">{activity.description}</p>
       </div>
-      <p className="shrink-0 text-xs font-semibold text-muted-foreground">{formatDate(activity.date)}</p>
+      <p className="shrink-0 text-xs font-semibold text-muted-foreground">{formatDateTime(activity.date)}</p>
     </div>
   );
 }
 
 function formatNumber(value: number) {
   return new Intl.NumberFormat('id-ID').format(value);
-}
-
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat('id-ID', {
-    day: '2-digit',
-    month: 'short',
-  }).format(new Date(value));
 }

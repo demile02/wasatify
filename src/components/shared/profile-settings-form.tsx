@@ -1,12 +1,20 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Camera, Trash2, Upload } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { SectionCard } from '@/components/shared/section-card';
 import { UserAvatar } from '@/components/shared/user-avatar';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { createClient } from '@/lib/supabase/client';
@@ -19,14 +27,29 @@ type ProfileSettingsFormProps = {
 };
 
 const allowedImageTypes = ['image/jpeg', 'image/png', 'image/webp'];
-const maxAvatarSize = 2 * 1024 * 1024;
+const hardMaxAvatarSize = 20 * 1024 * 1024;
+const targetAvatarSize = 1.9 * 1024 * 1024;
+const avatarCanvasSizes = [1024, 900, 800, 700, 600];
+const webpMime = 'image/webp';
+
+type CropState = {
+  zoom: number;
+  offsetX: number;
+  offsetY: number;
+};
 
 export function ProfileSettingsForm({ profile, roleLabel, roleDescription }: ProfileSettingsFormProps) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cropImageRef = useRef<HTMLImageElement>(null);
   const [fullName, setFullName] = useState(profile.full_name);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [cropSourceUrl, setCropSourceUrl] = useState<string | null>(null);
+  const [cropSourceName, setCropSourceName] = useState('avatar');
+  const [cropState, setCropState] = useState<CropState>({ zoom: 1, offsetX: 0, offsetY: 0 });
+  const [isCropDialogOpen, setIsCropDialogOpen] = useState(false);
+  const [isCropping, setIsCropping] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState(profile.avatar_url ?? null);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -44,6 +67,13 @@ export function ProfileSettingsForm({ profile, roleLabel, roleDescription }: Pro
     [profile.class_name, profile.email, profile.school_name, profile.subject, roleDescription, roleLabel],
   );
 
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      if (cropSourceUrl) URL.revokeObjectURL(cropSourceUrl);
+    };
+  }, [cropSourceUrl, previewUrl]);
+
   function handleFileChange(file: File | null) {
     if (!file) return;
 
@@ -52,14 +82,42 @@ export function ProfileSettingsForm({ profile, roleLabel, roleDescription }: Pro
       return;
     }
 
-    if (file.size > maxAvatarSize) {
-      toast.error('Ukuran foto maksimal 2MB.');
+    if (file.size > hardMaxAvatarSize) {
+      toast.error('Ukuran gambar terlalu besar. Maksimal 20MB.');
       return;
     }
 
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-    setSelectedFile(file);
-    setPreviewUrl(URL.createObjectURL(file));
+    if (cropSourceUrl) URL.revokeObjectURL(cropSourceUrl);
+    setCropSourceName(file.name);
+    setCropSourceUrl(URL.createObjectURL(file));
+    setCropState({ zoom: 1, offsetX: 0, offsetY: 0 });
+    setIsCropDialogOpen(true);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }
+
+  async function handleApplyCrop() {
+    if (!cropImageRef.current) {
+      toast.error('Gambar belum siap diproses.');
+      return;
+    }
+
+    setIsCropping(true);
+    try {
+      const blob = await cropAndCompressAvatar(cropImageRef.current, cropState);
+      const fileName = `avatar-${profile.id}-${Date.now()}.webp`;
+      const nextFile = new File([blob], fileName, { type: blob.type || webpMime });
+
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      setSelectedFile(nextFile);
+      setPreviewUrl(URL.createObjectURL(nextFile));
+      setIsCropDialogOpen(false);
+      toast.success('Foto siap disimpan. Ukuran sudah dikompres otomatis.');
+    } catch (error) {
+      console.error('Avatar crop failed', error);
+      toast.error(error instanceof Error ? error.message : 'Gagal memproses foto profil.');
+    } finally {
+      setIsCropping(false);
+    }
   }
 
   async function handleSave() {
@@ -82,16 +140,16 @@ export function ProfileSettingsForm({ profile, roleLabel, roleDescription }: Pro
 
       let nextAvatarUrl = avatarUrl;
       if (selectedFile) {
-        const path = `avatars/${user.id}/${Date.now()}-${safeFileName(selectedFile.name)}`;
+        const path = `avatars/${user.id}/${Date.now()}-avatar.webp`;
         const { error: uploadError } = await supabase.storage
           .from('profile-avatars')
           .upload(path, selectedFile, {
             cacheControl: '3600',
-            contentType: selectedFile.type,
+            contentType: selectedFile.type || webpMime,
             upsert: true,
           });
 
-        if (uploadError) throw uploadError;
+        if (uploadError) throw new Error(formatStorageError(uploadError.message));
 
         const { data } = supabase.storage.from('profile-avatars').getPublicUrl(path);
         nextAvatarUrl = data.publicUrl;
@@ -106,7 +164,7 @@ export function ProfileSettingsForm({ profile, roleLabel, roleDescription }: Pro
         })
         .eq('id', user.id);
 
-      if (updateError) throw updateError;
+      if (updateError) throw new Error(formatProfileUpdateError(updateError.message));
 
       setAvatarUrl(nextAvatarUrl);
       setSelectedFile(null);
@@ -117,7 +175,8 @@ export function ProfileSettingsForm({ profile, roleLabel, roleDescription }: Pro
       toast.success('Profil berhasil diperbarui.');
       router.refresh();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Gagal menyimpan profil.');
+      console.error('Profile save failed', error);
+      toast.error(formatUnknownError(error, 'Gagal menyimpan profil.'));
     } finally {
       setIsSaving(false);
     }
@@ -135,12 +194,13 @@ export function ProfileSettingsForm({ profile, roleLabel, roleDescription }: Pro
         error: userError,
       } = await supabase.auth.getUser();
 
-      if (userError) throw userError;
+      if (userError) throw new Error(formatAuthError(userError.message));
       if (!user || user.id !== profile.id) throw new Error('Sesi akun tidak valid. Silakan masuk kembali.');
 
       const storagePath = extractAvatarStoragePath(avatarUrl);
       if (storagePath) {
-        await supabase.storage.from('profile-avatars').remove([storagePath]);
+        const { error: removeError } = await supabase.storage.from('profile-avatars').remove([storagePath]);
+        if (removeError) console.warn('Avatar storage delete skipped', removeError);
       }
 
       const { error: updateError } = await supabase
@@ -148,7 +208,7 @@ export function ProfileSettingsForm({ profile, roleLabel, roleDescription }: Pro
         .update({ avatar_url: null, updated_at: new Date().toISOString() })
         .eq('id', user.id);
 
-      if (updateError) throw updateError;
+      if (updateError) throw new Error(formatProfileUpdateError(updateError.message));
 
       setAvatarUrl(null);
       setSelectedFile(null);
@@ -159,7 +219,8 @@ export function ProfileSettingsForm({ profile, roleLabel, roleDescription }: Pro
       toast.success('Foto profil dihapus.');
       router.refresh();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Gagal menghapus foto profil.');
+      console.error('Profile avatar delete failed', error);
+      toast.error(formatUnknownError(error, 'Gagal menghapus foto profil.'));
     } finally {
       setIsDeleting(false);
     }
@@ -193,7 +254,9 @@ export function ProfileSettingsForm({ profile, roleLabel, roleDescription }: Pro
             </Button>
           )}
         </div>
-        <p className="mt-4 text-xs leading-5 text-muted-foreground">Format JPG, PNG, atau WebP. Maksimal 2MB.</p>
+        <p className="mt-4 text-xs leading-5 text-muted-foreground">
+          Format JPG, PNG, atau WebP. Foto besar akan dicrop 1:1 dan dikompres otomatis.
+        </p>
       </SectionCard>
 
       <SectionCard>
@@ -253,20 +316,165 @@ export function ProfileSettingsForm({ profile, roleLabel, roleDescription }: Pro
           </div>
         </div>
       </SectionCard>
+
+      <Dialog open={isCropDialogOpen} onOpenChange={(open) => !isCropping && setIsCropDialogOpen(open)}>
+        <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Crop Foto Profil</DialogTitle>
+            <DialogDescription>
+              Atur area foto dengan rasio 1:1. Hasilnya akan dikompres otomatis sebelum diupload.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-5">
+            <div className="mx-auto aspect-square w-full max-w-[420px] overflow-hidden rounded-3xl border border-border bg-slate-100 shadow-inner">
+              {cropSourceUrl && (
+                // eslint-disable-next-line @next/next/no-img-element -- Local object URL is used for client-side crop preview.
+                <img
+                  ref={cropImageRef}
+                  src={cropSourceUrl}
+                  alt="Preview crop foto profil"
+                  className="h-full w-full object-cover"
+                  style={{
+                    objectPosition: `${50 + cropState.offsetX}% ${50 + cropState.offsetY}%`,
+                    transform: `scale(${cropState.zoom})`,
+                    transformOrigin: 'center',
+                  }}
+                />
+              )}
+            </div>
+
+            <div className="grid gap-4 rounded-2xl border border-border bg-white p-4">
+              <CropSlider
+                label="Zoom"
+                min={1}
+                max={3}
+                step={0.05}
+                value={cropState.zoom}
+                onChange={(zoom) => setCropState((current) => ({ ...current, zoom }))}
+              />
+              <CropSlider
+                label="Geser horizontal"
+                min={-50}
+                max={50}
+                step={1}
+                value={cropState.offsetX}
+                onChange={(offsetX) => setCropState((current) => ({ ...current, offsetX }))}
+              />
+              <CropSlider
+                label="Geser vertikal"
+                min={-50}
+                max={50}
+                step={1}
+                value={cropState.offsetY}
+                onChange={(offsetY) => setCropState((current) => ({ ...current, offsetY }))}
+              />
+              <p className="text-xs leading-5 text-muted-foreground">
+                File dipilih: {cropSourceName}. Output avatar akan dibuat sebagai WebP sekitar maksimal 2MB.
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isCropping}
+              onClick={() => setIsCropDialogOpen(false)}
+            >
+              Batal
+            </Button>
+            <Button type="button" disabled={isCropping} onClick={handleApplyCrop}>
+              {isCropping ? 'Memproses...' : 'Gunakan Foto Ini'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
-function safeFileName(fileName: string) {
-  const [name = 'avatar', extension = 'png'] = fileName.split(/\.(?=[^.]+$)/);
-  const safeBase = name
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 70);
-  const safeExtension = extension.toLowerCase().replace(/[^a-z0-9]/g, '') || 'png';
-  return `${safeBase || 'avatar'}.${safeExtension}`;
+function CropSlider({
+  label,
+  min,
+  max,
+  step,
+  value,
+  onChange,
+}: {
+  label: string;
+  min: number;
+  max: number;
+  step: number;
+  value: number;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <label className="grid gap-2">
+      <span className="flex items-center justify-between text-sm font-bold text-ink">
+        {label}
+        <span className="text-xs font-semibold text-muted-foreground">{value.toFixed(step < 1 ? 2 : 0)}</span>
+      </span>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(event) => onChange(Number(event.target.value))}
+        className="w-full accent-primary"
+      />
+    </label>
+  );
+}
+
+async function cropAndCompressAvatar(image: HTMLImageElement, crop: CropState) {
+  const naturalWidth = image.naturalWidth;
+  const naturalHeight = image.naturalHeight;
+  if (!naturalWidth || !naturalHeight) throw new Error('Gambar belum selesai dimuat.');
+
+  for (const size of avatarCanvasSizes) {
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('Browser tidak mendukung pemrosesan gambar.');
+
+    const sourceSize = Math.max(1, Math.min(naturalWidth, naturalHeight) / crop.zoom);
+    const maxOffsetX = Math.max(0, (naturalWidth - sourceSize) / 2);
+    const maxOffsetY = Math.max(0, (naturalHeight - sourceSize) / 2);
+    const centerX = naturalWidth / 2 + (crop.offsetX / 50) * maxOffsetX;
+    const centerY = naturalHeight / 2 + (crop.offsetY / 50) * maxOffsetY;
+    const sourceX = clamp(centerX - sourceSize / 2, 0, naturalWidth - sourceSize);
+    const sourceY = clamp(centerY - sourceSize / 2, 0, naturalHeight - sourceSize);
+
+    context.fillStyle = '#ffffff';
+    context.fillRect(0, 0, size, size);
+    context.drawImage(image, sourceX, sourceY, sourceSize, sourceSize, 0, 0, size, size);
+
+    for (let quality = 0.9; quality >= 0.65; quality -= 0.05) {
+      const blob = await canvasToBlob(canvas, webpMime, Number(quality.toFixed(2)));
+      if (blob.size <= targetAvatarSize) return blob;
+    }
+  }
+
+  throw new Error('Gambar gagal dikompres di bawah 2MB. Coba crop area lebih kecil atau gunakan gambar lain.');
+}
+
+function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality: number) {
+  return new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) {
+        resolve(blob);
+        return;
+      }
+      reject(new Error('Gagal membuat file gambar dari hasil crop.'));
+    }, type, quality);
+  });
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
 }
 
 function extractAvatarStoragePath(publicUrl: string) {
@@ -275,4 +483,48 @@ function extractAvatarStoragePath(publicUrl: string) {
   if (markerIndex === -1) return null;
 
   return decodeURIComponent(publicUrl.slice(markerIndex + marker.length));
+}
+
+function formatStorageError(message: string) {
+  const normalized = message.toLowerCase();
+  if (normalized.includes('bucket') || normalized.includes('not found')) {
+    return 'Bucket profile-avatars belum tersedia. Jalankan supabase/storage.sql terlebih dahulu.';
+  }
+  if (normalized.includes('row-level security') || normalized.includes('policy')) {
+    return 'Gagal mengunggah foto profil karena policy Storage belum mengizinkan folder akun ini.';
+  }
+  if (normalized.includes('payload') || normalized.includes('size') || normalized.includes('too large')) {
+    return 'Gagal mengunggah foto profil karena ukuran hasil kompresi masih terlalu besar.';
+  }
+  if (normalized.includes('failed to fetch') || normalized.includes('network')) {
+    return 'Gagal mengunggah foto profil. Periksa koneksi atau konfigurasi Supabase Storage.';
+  }
+  return `Gagal mengunggah foto profil. ${message}`;
+}
+
+function formatProfileUpdateError(message: string) {
+  const normalized = message.toLowerCase();
+  if (normalized.includes('row-level security') || normalized.includes('policy')) {
+    return 'Gagal memperbarui profil karena policy database belum mengizinkan update profil.';
+  }
+  if (normalized.includes('failed to fetch') || normalized.includes('network')) {
+    return 'Gagal memperbarui profil. Periksa koneksi atau konfigurasi Supabase.';
+  }
+  return `Gagal memperbarui profil. ${message}`;
+}
+
+function formatAuthError(message: string) {
+  if (message.toLowerCase().includes('failed to fetch')) {
+    return 'Gagal membaca sesi akun. Periksa koneksi atau konfigurasi Supabase.';
+  }
+  return message;
+}
+
+function formatUnknownError(error: unknown, fallback: string) {
+  if (!(error instanceof Error)) return fallback;
+  const normalized = error.message.toLowerCase();
+  if (normalized.includes('failed to fetch')) {
+    return `${fallback} Periksa koneksi atau konfigurasi Supabase.`;
+  }
+  return error.message;
 }

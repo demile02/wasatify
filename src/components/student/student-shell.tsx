@@ -5,7 +5,6 @@ import { useRef } from 'react';
 import {
   Award,
   BarChart3,
-  Bell,
   BookOpen,
   ClipboardCheck,
   ClipboardList,
@@ -19,14 +18,17 @@ import {
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { AppLogo } from '@/components/shared/app-logo';
+import { NotificationBell } from '@/components/shared/notification-bell';
 import { ProfileMenu } from '@/components/shared/profile-menu';
 import { Button } from '@/components/ui/button';
 import { studentNavigation } from '@/lib/constants/navigation';
+import type { NotificationItem } from '@/lib/notifications';
 import type { Profile } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 type StudentShellProps = {
   profile: Profile;
+  notifications?: NotificationItem[];
   children: ReactNode;
 };
 
@@ -47,7 +49,7 @@ const mobileItems = studentNavigation.filter((item) =>
   ['Beranda', 'Modul Belajar', 'Kuis', 'Refleksi Diri', 'Progress'].includes(item.label),
 );
 
-export function StudentShell({ profile, children }: StudentShellProps) {
+export function StudentShell({ profile, notifications = [], children }: StudentShellProps) {
   const pathname = usePathname() ?? '';
   const router = useRouter();
   const desktopSearchRef = useRef<HTMLInputElement>(null);
@@ -129,10 +131,7 @@ export function StudentShell({ profile, children }: StudentShellProps) {
             </form>
             )}
 
-            <button className="relative ml-auto grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-border bg-white text-foreground shadow-sm transition hover:bg-mint md:ml-0 md:h-11 md:w-11">
-              <Bell className="h-5 w-5" />
-              <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-gold" />
-            </button>
+            <NotificationBell items={notifications} />
 
             <ProfileMenu profile={profile} roleLabel="Siswa" profileHref="/student/settings" />
           </div>
@@ -153,12 +152,12 @@ export function StudentShell({ profile, children }: StudentShellProps) {
           )}
         </header>
 
-        <main className="min-w-0 overflow-x-hidden px-5 py-6 pb-28 sm:px-8 lg:pb-10">
+        <main className="min-w-0 overflow-x-hidden px-5 py-6 pb-app-bottom sm:px-8 lg:pb-10">
           <div className="mx-auto min-w-0 max-w-7xl">{children}</div>
         </main>
       </div>
 
-      <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-primary/10 bg-white px-2 py-2 shadow-soft lg:hidden">
+      <nav className="safe-bottom-nav fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-primary/10 bg-white px-2 pt-2 shadow-soft lg:hidden">
         {mobileItems.map((item) => {
           const Icon = iconMap[item.icon as keyof typeof iconMap] ?? Home;
           const active = isActivePath(pathname, item.href, item.label);
@@ -182,7 +181,7 @@ export function StudentShell({ profile, children }: StudentShellProps) {
 }
 
 function isActivePath(pathname: string, href: string, label: string) {
-  if (label === 'Kuis') return pathname.includes('/quiz');
+  if (label === 'Kuis') return pathname.startsWith('/student/quizzes') || pathname.includes('/quiz');
   if (label === 'Beranda') return pathname === '/student/dashboard' || pathname === '/student';
   if (href === '/student/modules') return pathname.startsWith('/student/modules') && !pathname.includes('/quiz');
   if (href === '/student/progress') return pathname.startsWith('/student/progress');

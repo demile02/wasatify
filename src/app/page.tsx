@@ -20,6 +20,7 @@ import {
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { PublicHeader } from '@/components/layout/public-header';
+import { InstallAppPrompt } from '@/components/pwa/install-app-prompt';
 import { AppLogo } from '@/components/shared/app-logo';
 import { FeatureCard } from '@/components/shared/feature-card';
 import { ProgressBar } from '@/components/shared/progress-bar';
@@ -124,6 +125,8 @@ export default async function HomePage() {
                 dengan kehidupan siswa sehari-hari.
               </p>
             </div>
+
+            <InstallAppPrompt compact className="mt-5 max-w-xl" />
           </div>
 
           <HeroLearningIllustration />

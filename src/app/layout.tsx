@@ -1,5 +1,6 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Poppins } from 'next/font/google';
+import { PwaRegister } from '@/components/pwa/pwa-register';
 import { Toaster } from '@/components/ui/sonner';
 import './globals.css';
 
@@ -13,6 +14,27 @@ const poppins = Poppins({
 export const metadata: Metadata = {
   title: 'WASATIFY - Belajar Islam Wasathiyah',
   description: 'Platform microlearning Islam Wasathiyah untuk siswa dan guru.',
+  manifest: '/manifest.webmanifest',
+  applicationName: 'WASATIFY',
+  appleWebApp: {
+    capable: true,
+    title: 'WASATIFY',
+    statusBarStyle: 'default',
+  },
+  icons: {
+    icon: [
+      { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+    ],
+    apple: [{ url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' }],
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: '#006B4F',
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
 };
 
 export default function RootLayout({
@@ -23,6 +45,7 @@ export default function RootLayout({
   return (
     <html lang="id">
       <body className={`${poppins.variable} min-h-screen bg-background font-sans text-foreground antialiased`}>
+        <PwaRegister />
         {children}
         <Toaster position="top-right" richColors closeButton />
       </body>

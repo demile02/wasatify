@@ -23,6 +23,7 @@ import { EmptyState } from '@/components/shared/empty-state';
 import { SectionCard } from '@/components/shared/section-card';
 import { StatCard } from '@/components/shared/stat-card';
 import { ExportReportButton } from '@/components/teacher/export-report-button';
+import { formatDateTime } from '@/lib/date';
 import type { TeacherReportsData, TeacherReportScope } from '@/lib/teacher/analytics';
 
 type TeacherReportsViewProps = {
@@ -212,13 +213,14 @@ export function TeacherReportsView({ data }: TeacherReportsViewProps) {
           <p className="font-bold text-ink">Students Needing Attention</p>
           {activeScope.studentsNeedingAttention.length ? (
             <div className="mt-4 max-w-full overflow-x-auto">
-              <table className="w-full min-w-[560px] text-left text-sm">
+              <table className="w-full min-w-[680px] text-left text-sm">
                 <thead>
                   <tr className="border-b border-border text-xs uppercase tracking-wide text-muted-foreground">
                     <th className="py-3 pr-4">Siswa</th>
                     <th className="px-4 py-3">Progress</th>
                     <th className="px-4 py-3">Kuis</th>
-                    <th className="py-3 pl-4">Refleksi</th>
+                    <th className="px-4 py-3">Refleksi</th>
+                    <th className="py-3 pl-4">Terakhir Aktif</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -230,7 +232,10 @@ export function TeacherReportsView({ data }: TeacherReportsViewProps) {
                       </td>
                       <td className="px-4 py-3">{student.progress}%</td>
                       <td className="px-4 py-3">{student.averageQuizScore || '-'}</td>
-                      <td className="py-3 pl-4">{student.reflectionCount}</td>
+                      <td className="px-4 py-3">{student.reflectionCount}</td>
+                      <td className="py-3 pl-4 text-muted-foreground">
+                        {student.lastActiveAt ? formatDateTime(student.lastActiveAt) : '-'}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

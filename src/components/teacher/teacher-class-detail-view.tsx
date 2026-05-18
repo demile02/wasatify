@@ -21,6 +21,7 @@ import { StatCard } from '@/components/shared/stat-card';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { formatDateTime } from '@/lib/date';
 import { resetStudentProgressAction } from '@/lib/teacher/class-actions';
 import type { TeacherClassActivity, TeacherClassDetailData, TeacherClassModule, TeacherStudentProgress } from '@/lib/teacher/analytics';
 import { cn } from '@/lib/utils';
@@ -308,7 +309,7 @@ function StudentProgressTable({
               <td className="px-4 py-4 text-muted-foreground">{student.reflectionsCount}</td>
               <td className="px-4 py-4 text-muted-foreground">{student.completedModules}</td>
               <td className="px-4 py-4 text-muted-foreground">
-                {student.lastActive ? formatDate(student.lastActive) : '-'}
+                {student.lastActive ? formatDateTime(student.lastActive) : '-'}
               </td>
               {onResetStudent && (
                 <td className="px-4 py-4">
@@ -480,7 +481,7 @@ function ActivityList({ activities, emptyTitle = 'Belum ada aktivitas' }: { acti
             <span className="block text-sm font-bold text-ink">{activity.title}</span>
             <span className="mt-1 block text-xs leading-5 text-muted-foreground">{activity.description}</span>
           </span>
-          <span className="shrink-0 text-xs font-semibold text-muted-foreground">{formatDate(activity.date)}</span>
+          <span className="shrink-0 text-xs font-semibold text-muted-foreground">{formatDateTime(activity.date)}</span>
         </div>
       ))}
     </div>
@@ -500,11 +501,4 @@ function ModuleStatusBadge({ status }: { status: 'published' | 'draft' | 'archiv
       {status === 'published' ? 'Aktif' : status === 'draft' ? 'Draft' : 'Nonaktif'}
     </span>
   );
-}
-
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat('id-ID', {
-    day: '2-digit',
-    month: 'short',
-  }).format(new Date(value));
 }

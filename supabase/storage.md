@@ -14,10 +14,10 @@ Run `supabase/storage.sql` after `schema.sql` and `rls.sql`.
 Student and teacher avatar uploads use this path format:
 
 ```txt
-avatars/{userId}/{timestamp}-{safeFileName}
+avatars/{userId}/{timestamp}-avatar.webp
 ```
 
-The `profile-avatars` storage policies allow authenticated users to upload, update, and delete only files inside their own `avatars/{userId}` folder. Public read is enabled so topbar avatars can render directly from `profiles.avatar_url`.
+The app accepts JPG, PNG, and WebP images up to 20MB, opens a 1:1 crop dialog in the browser, then compresses the result to WebP before uploading. The `profile-avatars` bucket can keep a 2MB Storage limit because the uploaded output is already compressed. The storage policies allow authenticated users to upload, update, and delete only files inside their own `avatars/{userId}` folder. Public read is enabled so topbar avatars can render directly from `profiles.avatar_url`.
 
 ## Media Library Path
 

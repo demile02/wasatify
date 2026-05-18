@@ -17,6 +17,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { formatDateTime } from '@/lib/date';
 import {
   archiveTeacherModuleAction,
   deleteTeacherModuleAction,
@@ -249,7 +250,7 @@ export function TeacherModulesTable({ modules }: TeacherModulesTableProps) {
                     <ModuleStatusBadge status={moduleItem.status} />
                   </td>
                   <td className="px-5 py-4 text-xs text-muted-foreground">
-                    {moduleItem.updatedAt ? formatDate(moduleItem.updatedAt) : '-'}
+                    {moduleItem.updatedAt ? formatDateTime(moduleItem.updatedAt) : '-'}
                   </td>
                   <td className="px-5 py-4">
                     <div className="flex justify-end gap-2">
@@ -436,12 +437,4 @@ function IconAction({ href, label, children }: { href: string; label: string; ch
       {children}
     </Link>
   );
-}
-
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat('id-ID', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  }).format(new Date(value));
 }

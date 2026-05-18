@@ -100,6 +100,13 @@ export default async function StudentQuizPage({ params }: QuizPageProps) {
                   </Link>
                 </Button>
               )}
+              {quizData.attemptInfo.hasPassed && (
+                <Button asChild variant="gold">
+                  <Link href={`/student/reflection?moduleId=${quizData.module.id}`}>
+                    {quizData.attemptInfo.hasReflection ? 'Edit Refleksi' : 'Lanjut Refleksi'}
+                  </Link>
+                </Button>
+              )}
             </div>
           }
         />

@@ -11,6 +11,7 @@ import { StatCard } from '@/components/shared/stat-card';
 import { StatusBadge } from '@/components/shared/status-badge';
 import { Button } from '@/components/ui/button';
 import { AnnouncementFormDialog } from '@/components/teacher/announcement-form-dialog';
+import { formatDateTime } from '@/lib/date';
 import {
   deleteAnnouncementAction,
   toggleAnnouncementStatusAction,
@@ -130,7 +131,7 @@ export function AnnouncementsTable({ data }: AnnouncementsTableProps) {
                   <tr key={announcement.id} className="border-b border-border/70 last:border-0">
                     <td className="py-4 pr-4 align-top">
                       <p className="font-bold text-ink">{announcement.title}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">Dibuat {formatDate(announcement.createdAt)}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">Dibuat {formatDateTime(announcement.createdAt)}</p>
                     </td>
                     <td className="px-4 py-4 align-top text-muted-foreground">{truncate(announcement.content, 120)}</td>
                     <td className="px-4 py-4 align-top font-semibold text-foreground">{announcement.className}</td>
@@ -141,7 +142,7 @@ export function AnnouncementsTable({ data }: AnnouncementsTableProps) {
                       />
                     </td>
                     <td className="px-4 py-4 align-top text-muted-foreground">
-                      {announcement.publishedAt ? formatDate(announcement.publishedAt) : '-'}
+                      {announcement.publishedAt ? formatDateTime(announcement.publishedAt) : '-'}
                     </td>
                     <td className="py-4 pl-4 align-top">
                       <div className="flex justify-end gap-2">
@@ -216,12 +217,4 @@ function FilterSelect({
 
 function truncate(value: string, maxLength: number) {
   return value.length > maxLength ? `${value.slice(0, maxLength - 1)}...` : value;
-}
-
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat('id-ID', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  }).format(new Date(value));
 }

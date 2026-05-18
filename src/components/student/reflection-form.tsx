@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition } from 'react';
 import { PenLine, ShieldCheck } from 'lucide-react';
+import Link from 'next/link';
 import { toast } from 'sonner';
 import { EmptyState } from '@/components/shared/empty-state';
 import { ProgressBar } from '@/components/shared/progress-bar';
@@ -18,13 +19,14 @@ type ReflectionFormProps = {
   modules: ReflectionModuleOption[];
   selectedModuleId?: string;
   existingReflection?: ReflectionDraft | null;
+  showCancel?: boolean;
 };
 
 const maxLength = 500;
 const minReflectionLength = 30;
 const minActionLength = 20;
 
-export function ReflectionForm({ modules, selectedModuleId, existingReflection }: ReflectionFormProps) {
+export function ReflectionForm({ modules, selectedModuleId, existingReflection, showCancel = false }: ReflectionFormProps) {
   const firstAvailableModule = selectedModuleId ?? modules[0]?.id ?? '';
   const [moduleId, setModuleId] = useState(firstAvailableModule);
   const [reflectionText, setReflectionText] = useState(existingReflection?.reflectionText ?? '');
@@ -148,9 +150,16 @@ export function ReflectionForm({ modules, selectedModuleId, existingReflection }
         </div>
       )}
 
-      <Button type="button" className="w-full" disabled={isPending || !moduleId} onClick={submitReflection}>
-        {isPending ? 'Menyimpan...' : hasSaved ? 'Perbarui Refleksi' : 'Simpan Refleksi'}
-      </Button>
+      <div className="flex flex-col gap-3 sm:flex-row">
+        {showCancel && (
+          <Button asChild type="button" variant="outline" className="sm:w-auto">
+            <Link href="/student/reflection">Batalkan</Link>
+          </Button>
+        )}
+        <Button type="button" className="w-full" disabled={isPending || !moduleId} onClick={submitReflection}>
+          {isPending ? 'Menyimpan...' : hasSaved ? 'Simpan Perubahan' : 'Simpan Refleksi'}
+        </Button>
+      </div>
 
     </div>
   );

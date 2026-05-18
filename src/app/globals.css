@@ -143,4 +143,24 @@
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
+
+  .pb-app-bottom {
+    padding-bottom: calc(7rem + env(safe-area-inset-bottom));
+  }
+
+  .pb-teacher-app-bottom {
+    padding-bottom: calc(9rem + env(safe-area-inset-bottom));
+  }
+
+  .safe-bottom-nav {
+    padding-bottom: calc(0.5rem + env(safe-area-inset-bottom));
+  }
+
+  .safe-bottom-fab {
+    bottom: calc(6rem + env(safe-area-inset-bottom));
+  }
+
+  .safe-bottom-sheet {
+    padding-bottom: calc(7rem + env(safe-area-inset-bottom));
+  }
 }
