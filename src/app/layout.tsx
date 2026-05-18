@@ -14,6 +14,9 @@ const poppins = Poppins({
 export const metadata: Metadata = {
   title: 'WASATIFY - Belajar Islam Wasathiyah',
   description: 'Platform microlearning Islam Wasathiyah untuk siswa dan guru.',
+  verification: {
+    google: 'Qu22mbnX8hETZAIqQWmDFpMM4VJT1-REUmWp3XcJoDI',
+  },
   manifest: '/manifest.webmanifest',
   applicationName: 'WASATIFY',
   appleWebApp: {
