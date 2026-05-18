@@ -6,6 +6,7 @@ import {
   type PublishedModuleRow,
 } from '@/lib/modules/status';
 import { getStudentClassTeacherContext } from '@/lib/scope';
+import { getEffectiveStreak } from '@/lib/student/streak';
 import { createClient, isSupabaseConfigured } from '@/lib/supabase/server';
 import type { Profile, StudentActivity } from '@/lib/types';
 
@@ -14,6 +15,7 @@ type StudentContext = {
   classId?: string | null;
   xp?: number | null;
   streakCount?: number | null;
+  lastActiveAt?: string | null;
 };
 
 type AnnouncementRow = {
@@ -25,6 +27,7 @@ type AnnouncementRow = {
 type ProfileStatsRow = {
   xp: number | null;
   streak_count: number | null;
+  last_active_at: string | null;
 };
 
 type QuizAttemptActivityRow = {
@@ -190,6 +193,7 @@ function normalizeStudentContext(student?: Profile | string): StudentContext {
     classId: student.class_id,
     xp: student.xp,
     streakCount: student.streak_count,
+    lastActiveAt: student.last_active_at,
   };
 }
 
@@ -200,7 +204,7 @@ async function getProfileStats(
   if (typeof context.xp === 'number' || typeof context.streakCount === 'number') {
     return {
       xp: Math.max(Math.round(context.xp ?? 0), 0),
-      streakCount: Math.max(Math.round(context.streakCount ?? 0), 0),
+      streakCount: getEffectiveStreak(context.streakCount, context.lastActiveAt),
     };
   }
 
@@ -208,7 +212,7 @@ async function getProfileStats(
 
   const { data, error } = await supabase
     .from('profiles')
-    .select('xp, streak_count')
+    .select('xp, streak_count, last_active_at')
     .eq('id', context.id)
     .maybeSingle<ProfileStatsRow>();
 
@@ -216,7 +220,7 @@ async function getProfileStats(
 
   return {
     xp: Math.max(Math.round(data.xp ?? 0), 0),
-    streakCount: Math.max(Math.round(data.streak_count ?? 0), 0),
+    streakCount: getEffectiveStreak(data.streak_count, data.last_active_at),
   };
 }
 

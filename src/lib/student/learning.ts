@@ -13,8 +13,24 @@ export type StudentLesson = {
   reflectionPrompt: string | null;
   videoUrl: string | null;
   infographicUrl: string | null;
+  infographicAsset: StudentInfographicAsset | null;
   orderIndex: number;
   estimatedMinutes: number;
+};
+
+export type StudentInfographicSlide = {
+  index: number;
+  url: string;
+  path?: string;
+};
+
+export type StudentInfographicAsset = {
+  id: string;
+  sourceFileType: string | null;
+  status: 'pending' | 'processing' | 'ready' | 'failed';
+  slideCount: number;
+  slideImages: StudentInfographicSlide[];
+  errorMessage: string | null;
 };
 
 export type QuizOption = {
@@ -108,8 +124,18 @@ type LessonRow = {
   reflection_prompt?: string | null;
   video_url: string | null;
   infographic_url?: string | null;
+  infographic_asset_id?: string | null;
   order_index: number | null;
   estimated_minutes: number | null;
+};
+
+type InfographicAssetRow = {
+  id: string;
+  source_file_type: string | null;
+  processing_status: StudentInfographicAsset['status'];
+  slide_count: number | null;
+  slide_images: unknown;
+  error_message: string | null;
 };
 
 type LessonProgressRow = {
@@ -167,6 +193,7 @@ const demoLessons: StudentLesson[] = [
       'Bagian mana dari kehidupanmu yang perlu lebih seimbang antara belajar, ibadah, keluarga, dan waktu pribadi?',
     videoUrl: null,
     infographicUrl: '/assets/wasatify-tawazun.png',
+    infographicAsset: null,
     orderIndex: 1,
     estimatedMinutes: 12,
   },
@@ -231,7 +258,7 @@ export async function getModuleLearningData(
       supabase
         .from('lessons')
         .select(
-          'id, module_id, title, slug, type, content, reflection_prompt, video_url, infographic_url, order_index, estimated_minutes',
+          'id, module_id, title, slug, type, content, reflection_prompt, video_url, infographic_url, infographic_asset_id, order_index, estimated_minutes',
         )
         .eq('module_id', moduleItem.id)
         .order('order_index', { ascending: true }),
@@ -248,11 +275,17 @@ export async function getModuleLearningData(
     if (lessonsResult.error) throw lessonsResult.error;
 
     const rows = (lessonsResult.data ?? []) as LessonRow[];
+    const infographicAssetIds = rows.map((lesson) => lesson.infographic_asset_id).filter(Boolean) as string[];
+    const infographicAssets = infographicAssetIds.length
+      ? await getInfographicAssets(infographicAssetIds)
+      : new Map<string, StudentInfographicAsset>();
     const completedRows = progressResult.error ? [] : ((progressResult.data ?? []) as LessonProgressRow[]);
 
     return {
       module: moduleItem,
-      lessons: rows.map(mapLessonRow),
+      lessons: rows.map((row) =>
+        mapLessonRow(row, row.infographic_asset_id ? infographicAssets.get(row.infographic_asset_id) ?? null : null),
+      ),
       completedLessonIds: completedRows.map((progress) => progress.lesson_id),
       isDemo: false,
     };
@@ -473,7 +506,31 @@ async function findStudentModule(moduleId: string, student?: Profile | string) {
   return modules.find((moduleItem) => moduleItem.id === moduleId || moduleItem.slug === moduleId) ?? null;
 }
 
-function mapLessonRow(row: LessonRow): StudentLesson {
+async function getInfographicAssets(assetIds: string[]) {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('infographic_assets')
+    .select('id, source_file_type, processing_status, slide_count, slide_images, error_message')
+    .in('id', assetIds);
+
+  if (error) throw error;
+
+  return new Map(
+    ((data ?? []) as InfographicAssetRow[]).map((asset) => [
+      asset.id,
+      {
+        id: asset.id,
+        sourceFileType: asset.source_file_type,
+        status: asset.processing_status,
+        slideCount: asset.slide_count ?? 0,
+        slideImages: normalizeSlideImages(asset.slide_images),
+        errorMessage: asset.error_message,
+      },
+    ]),
+  );
+}
+
+function mapLessonRow(row: LessonRow, infographicAsset: StudentInfographicAsset | null): StudentLesson {
   return {
     id: row.id,
     moduleId: row.module_id,
@@ -484,9 +541,29 @@ function mapLessonRow(row: LessonRow): StudentLesson {
     reflectionPrompt: row.reflection_prompt ?? null,
     videoUrl: row.video_url,
     infographicUrl: row.infographic_url ?? null,
+    infographicAsset,
     orderIndex: row.order_index ?? 1,
     estimatedMinutes: row.estimated_minutes ?? 5,
   };
+}
+
+function normalizeSlideImages(value: unknown): StudentInfographicSlide[] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .map((slide, index) => {
+      if (!slide || typeof slide !== 'object') return null;
+      const candidate = slide as Record<string, unknown>;
+      const url = String(candidate.url ?? '').trim();
+      if (!url) return null;
+      const path = typeof candidate.path === 'string' ? candidate.path : undefined;
+      return {
+        index: Number(candidate.index ?? index + 1),
+        url,
+        ...(path ? { path } : {}),
+      };
+    })
+    .filter((slide): slide is StudentInfographicSlide => Boolean(slide));
 }
 
 function mapQuizQuestionRow(row: QuizQuestionRow): QuizQuestion {

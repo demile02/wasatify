@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { getStudentAvailableModuleIds } from '@/lib/scope';
 import { normalizeCorrectAnswer } from '@/lib/student/learning';
+import { recordStudentActivity } from '@/lib/student/streak';
 import { createClient, isSupabaseConfigured } from '@/lib/supabase/server';
 
 export type LessonProgressActionResult = {
@@ -77,11 +78,6 @@ type QuizAvailabilityRow = {
   id: string;
   status: 'draft' | 'published' | 'archived' | null;
   is_published: boolean | null;
-};
-
-type ActivityProfileRow = {
-  streak_count: number | null;
-  last_active_at: string | null;
 };
 
 const submitReflectionSchema = z.object({
@@ -227,7 +223,7 @@ export async function submitReflectionAction(input: SubmitReflectionInput): Prom
         .eq('id', user.id);
     }
 
-    await touchStudentActivity(supabase, user.id, now);
+    await recordStudentActivity(user.id, now);
 
     revalidatePath('/student/reflection');
     revalidatePath('/student/progress');
@@ -344,7 +340,7 @@ export async function markLessonCompleteAction(
 
     if (moduleProgressError) throw moduleProgressError;
 
-    await touchStudentActivity(supabase, user.id, now);
+    await recordStudentActivity(user.id, now);
 
     revalidatePath(`/student/modules/${normalizedModuleId}`);
     revalidatePath('/student/modules');
@@ -402,7 +398,7 @@ export async function submitQuizAttemptAction(
     }
 
     const maxAttempts = Math.max(quiz.max_attempts ?? 3, 1);
-    const allowRetake = maxAttempts > 1 && Boolean(quiz.allow_retake);
+    const allowRetake = maxAttempts > 1 && Boolean(quiz.allow_retake ?? true);
     const { data: existingAttempts, error: existingAttemptsError } = await supabase
       .from('quiz_attempts')
       .select('id, score, passed')
@@ -479,7 +475,7 @@ export async function submitQuizAttemptAction(
 
     if (attemptError) throw attemptError;
 
-    await touchStudentActivity(supabase, user.id, submittedAt.toISOString());
+    await recordStudentActivity(user.id, submittedAt);
 
     if (passed) {
       const now = submittedAt.toISOString();
@@ -551,49 +547,6 @@ export async function submitQuizAttemptAction(
 function parseStartedAt(startedAt: string, fallback: Date) {
   const parsed = new Date(startedAt);
   return Number.isNaN(parsed.getTime()) ? fallback : parsed;
-}
-
-async function touchStudentActivity(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  studentId: string,
-  activityAt = new Date().toISOString(),
-) {
-  const { data: profile, error } = await supabase
-    .from('profiles')
-    .select('streak_count, last_active_at')
-    .eq('id', studentId)
-    .maybeSingle<ActivityProfileRow>();
-
-  if (error) throw error;
-
-  const currentStreak = Math.max(Math.round(profile?.streak_count ?? 0), 0);
-  const todayKey = toUtcDateKey(activityAt);
-  const lastActiveKey = profile?.last_active_at ? toUtcDateKey(profile.last_active_at) : null;
-  const yesterdayKey = toUtcDateKey(new Date(new Date(activityAt).getTime() - 24 * 60 * 60 * 1000).toISOString());
-
-  const nextStreak =
-    !lastActiveKey
-      ? 1
-      : lastActiveKey === todayKey
-        ? Math.max(currentStreak, 1)
-        : lastActiveKey === yesterdayKey
-          ? currentStreak + 1
-          : 1;
-
-  const { error: updateError } = await supabase
-    .from('profiles')
-    .update({
-      streak_count: nextStreak,
-      last_active_at: activityAt,
-    })
-    .eq('id', studentId);
-
-  if (updateError) throw updateError;
-}
-
-function toUtcDateKey(value: string) {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? new Date().toISOString().slice(0, 10) : date.toISOString().slice(0, 10);
 }
 
 async function canStudentAccessModule(studentId: string, moduleId: string) {

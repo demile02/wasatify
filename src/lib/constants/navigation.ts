@@ -19,7 +19,7 @@ export const studentNavigation: NavigationItem[] = [
   { label: 'Sertifikat', href: '/student/certificates', icon: 'Award' },
   { label: 'Pengumuman', href: '/student/announcements', icon: 'Megaphone' },
   { label: 'Pesan', href: '/student/messages', icon: 'Mail' },
-  { label: 'Pengaturan', href: '/student/profile', icon: 'Settings' },
+  { label: 'Pengaturan', href: '/student/settings', icon: 'Settings' },
 ];
 
 export const teacherNavigation: NavigationItem[] = [

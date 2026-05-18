@@ -273,6 +273,7 @@ async function syncLessons(moduleId: string, lessons: ModuleEditorLesson[]) {
       content: lesson.content.trim(),
       video_url: lesson.videoUrl.trim() || null,
       infographic_url: lesson.infographicUrl.trim() || null,
+      infographic_asset_id: lesson.infographicAssetId || null,
       reflection_prompt: lesson.reflectionPrompt.trim() || null,
       order_index: index + 1,
       estimated_minutes: 5,
@@ -294,13 +295,27 @@ async function syncLessons(moduleId: string, lessons: ModuleEditorLesson[]) {
       delete payload.slug;
       const { error } = await supabase.from('lessons').update(payload).eq('id', lesson.id);
       if (error) throw error;
+      await attachInfographicAsset(moduleId, lesson.id, lesson.infographic_asset_id);
     } else {
       const payload = { ...lesson };
       delete payload.id;
-      const { error } = await supabase.from('lessons').insert(payload);
+      const { data, error } = await supabase.from('lessons').insert(payload).select('id').single<{ id: string }>();
       if (error) throw error;
+      await attachInfographicAsset(moduleId, data.id, lesson.infographic_asset_id);
     }
   }
+}
+
+async function attachInfographicAsset(moduleId: string, lessonId: string, infographicAssetId?: string | null) {
+  if (!infographicAssetId) return;
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('infographic_assets')
+    .update({ module_id: moduleId, lesson_id: lessonId })
+    .eq('id', infographicAssetId);
+
+  if (error) throw error;
 }
 
 async function syncQuiz(

@@ -1,13 +1,24 @@
-import { Settings } from 'lucide-react';
-import { TeacherPlaceholder } from '@/components/teacher/teacher-placeholder';
+import { PageHeader } from '@/components/shared/page-header';
+import { ProfileSettingsForm } from '@/components/shared/profile-settings-form';
+import { requireTeacher } from '@/lib/auth/server';
+import { demoTeacherProfile } from '@/lib/demo/teacher';
 
-export default function TeacherSettingsPage() {
+export default async function TeacherSettingsPage() {
+  const profile = (await requireTeacher()) ?? demoTeacherProfile;
+
   return (
-    <TeacherPlaceholder
+    <div>
+      <PageHeader
       eyebrow="Pengaturan"
-      title="Pengaturan Guru"
-      description="Kelola profil, preferensi notifikasi, dan konfigurasi workspace mengajar."
-      icon={Settings}
-    />
+        title="Pengaturan"
+        description="Kelola foto profil dan informasi dasar akun guru."
+      />
+
+      <ProfileSettingsForm
+        profile={profile}
+        roleLabel={profile.role === 'admin' ? 'Admin' : 'Guru'}
+        roleDescription={profile.subject ?? profile.school_name ?? 'Guru WASATIFY'}
+      />
+    </div>
   );
 }

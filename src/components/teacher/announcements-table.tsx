@@ -132,7 +132,7 @@ export function AnnouncementsTable({ data }: AnnouncementsTableProps) {
                       <p className="font-bold text-ink">{announcement.title}</p>
                       <p className="mt-1 text-xs text-muted-foreground">Dibuat {formatDate(announcement.createdAt)}</p>
                     </td>
-                    <td className="app-readable px-4 py-4 align-top text-muted-foreground">{truncate(announcement.content, 120)}</td>
+                    <td className="px-4 py-4 align-top text-muted-foreground">{truncate(announcement.content, 120)}</td>
                     <td className="px-4 py-4 align-top font-semibold text-foreground">{announcement.className}</td>
                     <td className="px-4 py-4 align-top">
                       <StatusBadge

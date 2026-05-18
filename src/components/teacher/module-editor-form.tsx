@@ -73,6 +73,10 @@ const steps: { id: StepId; label: string }[] = [
 ];
 
 const optionIds = ['a', 'b', 'c', 'd'] as const;
+const PPTX_MIME = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+const PPTX_UNSUPPORTED_MESSAGE =
+  'File PPTX belum dapat dikonversi otomatis di server saat ini. Ekspor PPTX ke PDF terlebih dahulu agar dapat ditampilkan sebagai slide.';
+const PPTX_FAILED_MESSAGE = 'Konversi PPTX membutuhkan worker/server renderer. Gunakan PDF untuk saat ini.';
 
 export function ModuleEditorForm({ mode, initialData, classes }: ModuleEditorFormProps) {
   const router = useRouter();
@@ -250,8 +254,15 @@ function updateLesson(clientId: string, patch: Partial<LessonState>) {
       const lessonsWithUploads = await Promise.all(
         form.lessons.map(async (lesson) => {
           if (!lesson.infographicFile) return lesson;
-          const uploaded = await uploadModuleFile(lesson.infographicFile, 'module-media', 'infographics');
-          return { ...lesson, infographicUrl: uploaded.publicUrl };
+          const infographic = await uploadInfographicFile(lesson.infographicFile, form.id);
+          return {
+            ...lesson,
+            infographicUrl: infographic.sourceUrl,
+            infographicAssetId: infographic.assetId,
+            infographicStatus: infographic.status,
+            infographicSlideCount: infographic.slideCount,
+            infographicError: infographic.errorMessage,
+          };
         }),
       );
       const result = await saveTeacherModuleAction({
@@ -653,6 +664,21 @@ function ContentStep({
   addLesson: () => void;
   removeLesson: (clientId: string) => void;
 }) {
+  function handleInfographicFileChange(clientId: string, file?: File) {
+    if (!file) {
+      updateLesson(clientId, { infographicFile: undefined });
+      return;
+    }
+
+    if (isPptxFile(file)) {
+      toast.warning(PPTX_UNSUPPORTED_MESSAGE);
+      updateLesson(clientId, { infographicFile: undefined });
+      return;
+    }
+
+    updateLesson(clientId, { infographicFile: file });
+  }
+
   return (
     <SectionCard>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -723,8 +749,9 @@ function ContentStep({
                   value={lesson.infographicUrl}
                   onChange={(event) => updateLesson(lesson.clientId, { infographicUrl: event.target.value })}
                   className={inputClass}
-                  placeholder="https://..."
+                  placeholder="https://... atau upload PDF/gambar di bawah"
                 />
+                <InfographicStatus lesson={lesson} />
               </Field>
               <Field label="Reflection Prompt Optional" className="sm:col-span-2">
                 <input
@@ -737,22 +764,55 @@ function ContentStep({
               <Field label="Upload Infografik" className="sm:col-span-2">
                 <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-dashed border-primary/20 bg-mint/25 px-4 py-3 text-sm font-semibold text-primary transition hover:bg-mint/45">
                   <FileImage className="h-5 w-5" />
-                  {lesson.infographicFile ? lesson.infographicFile.name : 'Pilih file infografik'}
+                  {lesson.infographicFile ? lesson.infographicFile.name : 'Pilih file PDF atau gambar infografik'}
                   <input
                     type="file"
-                    accept="image/png,image/jpeg,image/webp,image/gif"
+                    accept={`application/pdf,${PPTX_MIME},image/png,image/jpeg,image/webp,image/gif`}
                     className="sr-only"
-                    onChange={(event) =>
-                      updateLesson(lesson.clientId, { infographicFile: event.target.files?.[0] ?? undefined })
-                    }
+                    onChange={(event) => {
+                      handleInfographicFileChange(lesson.clientId, event.target.files?.[0]);
+                      event.currentTarget.value = '';
+                    }}
                   />
                 </label>
+                <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                  PDF akan dikonversi menjadi slide. PPTX belum dapat dikonversi otomatis; ekspor ke PDF terlebih dahulu.
+                </p>
               </Field>
             </div>
           </div>
         ))}
       </div>
     </SectionCard>
+  );
+}
+
+function InfographicStatus({ lesson }: { lesson: LessonState }) {
+  if (lesson.infographicFile) {
+    return (
+      <p className="mt-2 text-xs font-semibold text-gold">
+        File baru akan diproses saat modul disimpan.
+      </p>
+    );
+  }
+
+  if (!lesson.infographicAssetId || !lesson.infographicStatus) return null;
+
+  const label =
+    lesson.infographicStatus === 'ready'
+      ? `Ready - ${lesson.infographicSlideCount ?? 0} slide`
+      : lesson.infographicStatus === 'failed'
+        ? 'Failed'
+        : lesson.infographicStatus === 'processing'
+          ? 'Processing'
+          : 'Pending';
+  const errorMessage = normalizeInfographicError(lesson.infographicError);
+
+  return (
+    <p className={cn('mt-2 text-xs font-semibold', lesson.infographicStatus === 'failed' ? 'text-red-600' : 'text-primary')}>
+      Status infografik: {label}
+      {errorMessage ? ` - ${errorMessage}` : ''}
+    </p>
   );
 }
 
@@ -1185,6 +1245,10 @@ function createLessonState(orderIndex: number, clientId = createClientId('lesson
     content: '',
     videoUrl: '',
     infographicUrl: '',
+    infographicAssetId: undefined,
+    infographicStatus: undefined,
+    infographicSlideCount: undefined,
+    infographicError: null,
     reflectionPrompt: '',
     orderIndex,
   };
@@ -1218,6 +1282,10 @@ function stripLessonState(lesson: LessonState): ModuleEditorLesson {
     content: lesson.content,
     videoUrl: lesson.videoUrl,
     infographicUrl: lesson.infographicUrl,
+    infographicAssetId: lesson.infographicAssetId,
+    infographicStatus: lesson.infographicStatus,
+    infographicSlideCount: lesson.infographicSlideCount,
+    infographicError: lesson.infographicError,
     reflectionPrompt: lesson.reflectionPrompt,
     orderIndex: lesson.orderIndex,
   };
@@ -1360,4 +1428,183 @@ async function uploadModuleFile(file: File, bucket: 'module-covers' | 'module-me
     mimeType: file.type,
     sizeBytes: file.size,
   };
+}
+
+type InfographicUploadResult = {
+  assetId: string;
+  sourceUrl: string;
+  status: LessonState['infographicStatus'];
+  slideCount: number;
+  errorMessage?: string | null;
+};
+
+type InfographicSlideImage = {
+  index: number;
+  url: string;
+  path: string;
+};
+
+async function uploadInfographicFile(file: File, moduleId?: string): Promise<InfographicUploadResult> {
+  if (isPptxFile(file)) {
+    throw new Error(PPTX_UNSUPPORTED_MESSAGE);
+  }
+
+  const allowedTypes = [
+    'application/pdf',
+    'image/png',
+    'image/jpeg',
+    'image/webp',
+    'image/gif',
+  ];
+
+  if (!allowedTypes.includes(file.type)) {
+    throw new Error('Infografik harus berupa PDF, PNG, JPG, WebP, atau GIF.');
+  }
+
+  const sourceAsset = await uploadModuleFile(file, 'module-media', 'infographics');
+
+  if (!isSupabaseConfigured) {
+    return {
+      assetId: crypto.randomUUID(),
+      sourceUrl: sourceAsset.publicUrl,
+      status: 'ready',
+      slideCount: 1,
+    };
+  }
+
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) throw new Error('Sesi upload belum aktif. Silakan masuk kembali.');
+
+  const { data: asset, error: assetError } = await supabase
+    .from('infographic_assets')
+    .insert({
+      module_id: moduleId ?? null,
+      title: file.name,
+      source_file_url: sourceAsset.publicUrl,
+      source_file_type: file.type,
+      processing_status: 'processing',
+      created_by: user.id,
+    })
+    .select('id')
+    .single<{ id: string }>();
+
+  if (assetError) {
+    throw new Error(
+      assetError.message.includes('relation') || assetError.message.includes('row-level security')
+        ? 'Gagal membuat metadata infografik. Pastikan schema dan RLS infographic_assets sudah dijalankan.'
+        : assetError.message,
+    );
+  }
+
+  if (file.type.startsWith('image/')) {
+    const slideImages = [{ index: 1, url: sourceAsset.publicUrl, path: sourceAsset.path }];
+    await updateInfographicAsset(asset.id, {
+      processing_status: 'ready',
+      slide_count: 1,
+      slide_images: slideImages,
+      error_message: null,
+    });
+    return { assetId: asset.id, sourceUrl: sourceAsset.publicUrl, status: 'ready', slideCount: 1 };
+  }
+
+  if (file.type === 'application/pdf') {
+    try {
+      const slideImages = await renderPdfToSlides(file, user.id, asset.id);
+      await updateInfographicAsset(asset.id, {
+        processing_status: 'ready',
+        slide_count: slideImages.length,
+        slide_images: slideImages,
+        error_message: null,
+      });
+      return {
+        assetId: asset.id,
+        sourceUrl: sourceAsset.publicUrl,
+        status: 'ready',
+        slideCount: slideImages.length,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'PDF gagal diproses menjadi slide.';
+      await updateInfographicAsset(asset.id, {
+        processing_status: 'failed',
+        slide_count: 0,
+        slide_images: [],
+        error_message: message,
+      });
+      toast.error(message);
+      return { assetId: asset.id, sourceUrl: sourceAsset.publicUrl, status: 'failed', slideCount: 0, errorMessage: message };
+    }
+  }
+
+  throw new Error('Format infografik belum didukung.');
+}
+
+function isPptxFile(file: File) {
+  return file.type === PPTX_MIME || file.name.toLowerCase().endsWith('.pptx');
+}
+
+function normalizeInfographicError(message?: string | null) {
+  if (!message) return null;
+  const normalized = message.toLowerCase();
+  if (normalized.includes('pptx') || normalized.includes('libreoffice') || normalized.includes('worker')) {
+    return PPTX_FAILED_MESSAGE;
+  }
+  return message;
+}
+
+async function updateInfographicAsset(assetId: string, payload: Record<string, unknown>) {
+  const supabase = createClient();
+  const { error } = await supabase.from('infographic_assets').update(payload).eq('id', assetId);
+  if (error) throw error;
+}
+
+async function renderPdfToSlides(file: File, userId: string, assetId: string): Promise<InfographicSlideImage[]> {
+  const pdfjs = await import('pdfjs-dist');
+  pdfjs.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.mjs', import.meta.url).toString();
+
+  const supabase = createClient();
+  const pdf = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
+  const slideImages: InfographicSlideImage[] = [];
+
+  for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+    const page = await pdf.getPage(pageNumber);
+    const viewport = page.getViewport({ scale: 1.6 });
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('Browser tidak mendukung render canvas untuk PDF.');
+
+    canvas.width = Math.ceil(viewport.width);
+    canvas.height = Math.ceil(viewport.height);
+    await page.render({ canvas, canvasContext: context, viewport }).promise;
+
+    const blob = await canvasToBlob(canvas);
+    const path = `${userId}/infographic-slides/${assetId}/slide-${pageNumber}.png`;
+    const { error } = await supabase.storage.from('module-media').upload(path, blob, {
+      cacheControl: '3600',
+      contentType: 'image/png',
+      upsert: true,
+    });
+
+    if (error) throw error;
+
+    const { data } = supabase.storage.from('module-media').getPublicUrl(path);
+    slideImages.push({ index: pageNumber, url: data.publicUrl, path });
+  }
+
+  return slideImages;
+}
+
+function canvasToBlob(canvas: HTMLCanvasElement) {
+  return new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) {
+        resolve(blob);
+        return;
+      }
+      reject(new Error('Gagal membuat gambar slide dari PDF.'));
+    }, 'image/png');
+  });
 }

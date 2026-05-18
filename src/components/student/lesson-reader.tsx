@@ -16,6 +16,7 @@ import { toast } from 'sonner';
 import { EmptyState } from '@/components/shared/empty-state';
 import { ProgressBar } from '@/components/shared/progress-bar';
 import { SectionCard } from '@/components/shared/section-card';
+import { InfographicViewer } from '@/components/student/infographic-viewer';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { markLessonCompleteAction } from '@/lib/student/actions';
@@ -222,6 +223,7 @@ export function LessonReader({ moduleItem, lessons, completedLessonIds }: Lesson
           <TabsContent value="infographic" className="mt-6">
             <MediaPanel
               url={activeLesson.infographicUrl}
+              infographicAsset={activeLesson.infographicAsset}
               type="image"
               emptyTitle="Infografik belum tersedia untuk materi ini."
               emptyDescription="Guru belum menambahkan infografik pendukung pada lesson ini."
@@ -377,15 +379,21 @@ function MaterialPanel({
 
 function MediaPanel({
   url,
+  infographicAsset,
   type,
   emptyTitle,
   emptyDescription,
 }: {
   url: string | null;
+  infographicAsset?: StudentLesson['infographicAsset'];
   type: 'video' | 'image';
   emptyTitle: string;
   emptyDescription: string;
 }) {
+  if (type === 'image' && infographicAsset) {
+    return <InfographicViewer asset={infographicAsset} />;
+  }
+
   if (!url) {
     return (
       <EmptyState

@@ -1,5 +1,6 @@
 import { demoStudentActivities, demoStudentModules } from '@/lib/demo/student';
 import { getStudentClassTeacherContext } from '@/lib/scope';
+import { getEffectiveStreak, getJakartaDateKey } from '@/lib/student/streak';
 import { createClient, isSupabaseConfigured } from '@/lib/supabase/server';
 import type { ModuleStatus } from '@/lib/types';
 
@@ -115,6 +116,7 @@ type AchievementRow = {
 type ProfileProgressRow = {
   xp: number | null;
   streak_count: number | null;
+  last_active_at: string | null;
 };
 
 const achievementRules: Record<string, (input: AchievementRuleInput) => boolean> = {
@@ -164,7 +166,7 @@ export async function getStudentProgressData(studentId: string): Promise<Student
 
     const [profileResult, progressResult, quizAttemptResult, reflectionResult, achievementResult, studentAchievementResult] =
       await Promise.all([
-        supabase.from('profiles').select('xp, streak_count').eq('id', studentId).maybeSingle<ProfileProgressRow>(),
+        supabase.from('profiles').select('xp, streak_count, last_active_at').eq('id', studentId).maybeSingle<ProfileProgressRow>(),
         moduleIds.length
           ? supabase
               .from('module_progress')
@@ -221,7 +223,7 @@ export async function getStudentProgressData(studentId: string): Promise<Student
     const achievements = (achievementResult.data ?? []) as AchievementRow[];
     let studentAchievements = (studentAchievementResult.data ?? []) as StudentAchievementRow[];
 
-    const profileStreak = profile?.streak_count ?? 0;
+    const profileStreak = getEffectiveStreak(profile?.streak_count, profile?.last_active_at);
     const activityDates = [
       ...quizAttempts.map((attempt) => attempt.submitted_at ?? attempt.created_at ?? ''),
       ...reflections.map((reflection) => reflection.created_at),
@@ -456,17 +458,17 @@ function calculateStreakDays(activityDates: string[]) {
     activityDates
       .map((date) => new Date(date))
       .filter((date) => !Number.isNaN(date.getTime()))
-      .map((date) => date.toISOString().slice(0, 10)),
+      .map((date) => getJakartaDateKey(date)),
   );
 
   const cursor = new Date();
   let streak = 0;
 
   for (let index = 0; index < 365; index += 1) {
-    const key = cursor.toISOString().slice(0, 10);
+    const key = getJakartaDateKey(cursor);
 
     if (!activeDays.has(key)) {
-      if (streak === 0) {
+      if (streak === 0 && index === 0) {
         cursor.setDate(cursor.getDate() - 1);
         continue;
       }

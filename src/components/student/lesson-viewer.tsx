@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { EmptyState } from '@/components/shared/empty-state';
 import { ProgressBar } from '@/components/shared/progress-bar';
 import { SectionCard } from '@/components/shared/section-card';
+import { InfographicViewer } from '@/components/student/infographic-viewer';
 import { Button } from '@/components/ui/button';
 import { markLessonCompleteAction } from '@/lib/student/actions';
 import type { StudentLesson } from '@/lib/student/learning';
@@ -154,6 +155,7 @@ export function LessonViewer({ moduleItem, lessons, completedLessonIds }: Lesson
           {activeTab === 'infographic' && (
             <MediaPanel
               url={activeLesson.infographicUrl}
+              infographicAsset={activeLesson.infographicAsset}
               type="image"
               emptyTitle="Infografik belum tersedia"
               emptyDescription="Guru belum menambahkan infografik untuk lesson ini."
@@ -244,15 +246,21 @@ export function LessonViewer({ moduleItem, lessons, completedLessonIds }: Lesson
 
 function MediaPanel({
   url,
+  infographicAsset,
   type,
   emptyTitle,
   emptyDescription,
 }: {
   url: string | null;
+  infographicAsset?: StudentLesson['infographicAsset'];
   type: 'video' | 'image';
   emptyTitle: string;
   emptyDescription: string;
 }) {
+  if (type === 'image' && infographicAsset) {
+    return <InfographicViewer asset={infographicAsset} />;
+  }
+
   if (!url) {
     return (
       <EmptyState

@@ -18,6 +18,8 @@ export type QuizAttemptStatus = 'in_progress' | 'submitted' | 'graded';
 
 export type MediaKind = 'avatar' | 'module_cover' | 'lesson_attachment' | 'other';
 
+export type InfographicProcessingStatus = 'pending' | 'processing' | 'ready' | 'failed';
+
 export type JsonValue =
   | string
   | number
@@ -119,6 +121,7 @@ export type Lesson = {
   id: string;
   module_id: string;
   media_asset_id?: string | null;
+  infographic_asset_id?: string | null;
   title: string;
   slug: string;
   type: LessonType;
@@ -128,6 +131,23 @@ export type Lesson = {
   infographic_url?: string | null;
   order_index: number;
   estimated_minutes: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type InfographicAsset = {
+  id: string;
+  module_id?: string | null;
+  lesson_id?: string | null;
+  media_asset_id?: string | null;
+  title: string;
+  source_file_url: string;
+  source_file_type: string;
+  processing_status: InfographicProcessingStatus;
+  slide_count: number;
+  slide_images: JsonValue[];
+  error_message?: string | null;
+  created_by?: string | null;
   created_at: string;
   updated_at: string;
 };

@@ -148,7 +148,7 @@ export default async function TeacherDashboardPage() {
                     <p className="font-bold text-ink">{announcement.title}</p>
                     <PriorityBadge priority={announcement.priority} />
                   </div>
-                  <p className="app-readable mt-2 line-clamp-2 text-sm leading-6 text-muted-foreground">{announcement.content}</p>
+                  <p className="mt-2 line-clamp-2 text-sm leading-6 text-muted-foreground">{announcement.content}</p>
                 </div>
               ))}
             </div>

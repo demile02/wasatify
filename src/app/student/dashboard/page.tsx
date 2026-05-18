@@ -98,7 +98,7 @@ export default async function StudentDashboardPage() {
                   {dashboard.announcements.map((announcement) => (
                     <div key={announcement.title} className="border-b border-border pb-4 last:border-0 last:pb-0">
                       <p className="text-sm font-bold text-foreground">{announcement.title}</p>
-                      <p className="app-readable mt-1 text-sm leading-6 text-muted-foreground">{announcement.content}</p>
+                      <p className="mt-1 text-sm leading-6 text-muted-foreground">{announcement.content}</p>
                     </div>
                   ))}
                 </div>

@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { EmptyState } from '@/components/shared/empty-state';
 import { PageHeader } from '@/components/shared/page-header';
 import { Button } from '@/components/ui/button';
-import { QuizPlayer } from '@/components/student/quiz-player';
+import { QuizDraftCleanup, QuizPlayer } from '@/components/student/quiz-player';
 import { requireStudent } from '@/lib/auth/server';
 import { demoStudentProfile } from '@/lib/demo/student';
 import { getQuizLearningData } from '@/lib/student/learning';
@@ -73,6 +73,7 @@ export default async function StudentQuizPage({ params }: QuizPageProps) {
   if (quizData.attemptInfo && !quizData.attemptInfo.canAttempt) {
     return (
       <div>
+        <QuizDraftCleanup studentId={profile.id} quizId={quizData.quiz.id} />
         <PageHeader
           eyebrow="Kuis Pemahaman"
           title="Kesempatan kuis sudah habis"
@@ -90,7 +91,7 @@ export default async function StudentQuizPage({ params }: QuizPageProps) {
           action={
             <div className="flex flex-col gap-3 sm:flex-row">
               <Button asChild variant="outline">
-                <Link href={`/student/modules/${quizData.module.id}`}>Kembali ke Modul</Link>
+                <Link href="/student/modules">Kembali ke Modul</Link>
               </Button>
               {quizData.attemptInfo.latestAttemptId && (
                 <Button asChild>

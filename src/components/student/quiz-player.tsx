@@ -56,6 +56,7 @@ export function QuizPlayer({ moduleId, quiz, attemptInfo, studentId }: QuizPlaye
 
   useEffect(() => {
     try {
+      removeQuizDrafts(studentId, quiz.id, draftKey);
       const rawDraft = window.localStorage.getItem(draftKey);
       if (!rawDraft) return;
 
@@ -282,6 +283,14 @@ export function QuizPlayer({ moduleId, quiz, attemptInfo, studentId }: QuizPlaye
   );
 }
 
+export function QuizDraftCleanup({ studentId, quizId }: { studentId: string; quizId: string }) {
+  useEffect(() => {
+    removeQuizDrafts(studentId, quizId);
+  }, [quizId, studentId]);
+
+  return null;
+}
+
 function OptionCard({
   question,
   optionId,
@@ -357,6 +366,15 @@ function SummaryRow({
 
 function splitAnswer(answer?: string) {
   return answer ? answer.split('|').filter(Boolean) : [];
+}
+
+function removeQuizDrafts(studentId: string, quizId: string, keepKey?: string) {
+  const prefix = `wasatify:quiz-draft:${studentId}:${quizId}:`;
+  for (let index = window.localStorage.length - 1; index >= 0; index -= 1) {
+    const key = window.localStorage.key(index);
+    if (!key || !key.startsWith(prefix) || key === keepKey) continue;
+    window.localStorage.removeItem(key);
+  }
 }
 
 function normalizeDraftAnswers(answers: QuizAnswerMap, questionIds: string[]) {

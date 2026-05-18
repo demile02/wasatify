@@ -69,7 +69,7 @@ export function ProfileMenu({ profile, roleLabel, profileHref }: ProfileMenuProp
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={() => router.push(profileHref)} className="cursor-pointer rounded-xl px-3 py-2.5">
           {roleLabel === 'Siswa' ? <UserRound className="h-4 w-4" /> : <Settings className="h-4 w-4" />}
-          {roleLabel === 'Siswa' ? 'Profil Saya' : 'Pengaturan'}
+          {roleLabel === 'Siswa' ? 'Pengaturan Profil' : 'Pengaturan'}
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem

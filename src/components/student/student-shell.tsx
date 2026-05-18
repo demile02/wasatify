@@ -134,7 +134,7 @@ export function StudentShell({ profile, children }: StudentShellProps) {
               <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-gold" />
             </button>
 
-            <ProfileMenu profile={profile} roleLabel="Siswa" profileHref="/student/profile" />
+            <ProfileMenu profile={profile} roleLabel="Siswa" profileHref="/student/settings" />
           </div>
 
           {showTopbarSearch && (
@@ -187,6 +187,6 @@ function isActivePath(pathname: string, href: string, label: string) {
   if (href === '/student/modules') return pathname.startsWith('/student/modules') && !pathname.includes('/quiz');
   if (href === '/student/progress') return pathname.startsWith('/student/progress');
   if (href === '/student/reflection') return pathname.startsWith('/student/reflection');
-  if (href === '/student/profile') return pathname.startsWith('/student/profile');
+  if (href === '/student/settings') return pathname.startsWith('/student/settings') || pathname.startsWith('/student/profile');
   return pathname === href || pathname.startsWith(`${href}/`);
 }

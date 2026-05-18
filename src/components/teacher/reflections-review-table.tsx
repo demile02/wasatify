@@ -125,8 +125,8 @@ export function ReflectionsReviewTable({ data }: ReflectionsReviewTableProps) {
                       <p className="mt-1 text-xs text-muted-foreground">{formatDate(reflection.createdAt)}</p>
                     </td>
                     <td className="px-4 py-4 align-top font-semibold text-foreground">{reflection.moduleTitle}</td>
-                    <td className="app-readable px-4 py-4 align-top text-muted-foreground">{truncate(reflection.reflectionText, 120)}</td>
-                    <td className="app-readable px-4 py-4 align-top text-muted-foreground">
+                    <td className="px-4 py-4 align-top text-muted-foreground">{truncate(reflection.reflectionText, 120)}</td>
+                    <td className="px-4 py-4 align-top text-muted-foreground">
                       {truncate(reflection.actionPlan || 'Belum ada aksi nyata.', 100)}
                     </td>
                     <td className="px-4 py-4 align-top">

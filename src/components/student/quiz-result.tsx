@@ -66,7 +66,7 @@ export function QuizResult({ result }: QuizResultProps) {
             </Button>
           )}
           <Button asChild variant="outline">
-            <Link href={`/student/modules/${result.module.id}`}>
+            <Link href="/student/modules">
               <ArrowLeft className="h-4 w-4" />
               Kembali ke Modul
             </Link>

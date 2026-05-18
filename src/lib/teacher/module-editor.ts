@@ -14,6 +14,10 @@ export type ModuleEditorLesson = {
   content: string;
   videoUrl: string;
   infographicUrl: string;
+  infographicAssetId?: string;
+  infographicStatus?: 'pending' | 'processing' | 'ready' | 'failed';
+  infographicSlideCount?: number;
+  infographicError?: string | null;
   reflectionPrompt: string;
   orderIndex: number;
 };
@@ -93,8 +97,17 @@ type LessonRow = {
   content: string | null;
   video_url: string | null;
   infographic_url: string | null;
+  infographic_asset_id?: string | null;
   reflection_prompt: string | null;
   order_index: number | null;
+};
+
+type InfographicAssetRow = {
+  id: string;
+  lesson_id: string | null;
+  processing_status: ModuleEditorLesson['infographicStatus'];
+  slide_count: number | null;
+  error_message: string | null;
 };
 
 type QuizRow = {
@@ -142,6 +155,10 @@ export function createEmptyLesson(orderIndex = 1): ModuleEditorLesson {
     content: '',
     videoUrl: '',
     infographicUrl: '',
+    infographicAssetId: undefined,
+    infographicStatus: undefined,
+    infographicSlideCount: undefined,
+    infographicError: null,
     reflectionPrompt: '',
     orderIndex,
   };
@@ -201,6 +218,7 @@ export async function getModuleEditorData(
                 content: 'Adab adalah sikap baik yang memuliakan Allah, sesama manusia, dan lingkungan.',
                 videoUrl: '',
                 infographicUrl: '',
+                infographicAssetId: undefined,
                 reflectionPrompt: '',
                 orderIndex: 1,
               },
@@ -261,7 +279,7 @@ export async function getModuleEditorData(
   const [lessonsResult, quizResult] = await Promise.all([
     supabase
       .from('lessons')
-      .select('id, title, content, video_url, infographic_url, reflection_prompt, order_index')
+      .select('id, title, content, video_url, infographic_url, infographic_asset_id, reflection_prompt, order_index')
       .eq('module_id', moduleRow.id)
       .order('order_index', { ascending: true }),
     supabase
@@ -274,6 +292,11 @@ export async function getModuleEditorData(
 
   const quizRow = ((quizResult.data ?? []) as QuizRow[])[0];
   const questions = quizRow ? await getQuestions(quizRow.id) : [createEmptyQuestion()];
+  const lessonRows = (lessonsResult.data ?? []) as LessonRow[];
+  const infographicAssetIds = lessonRows.map((lesson) => lesson.infographic_asset_id).filter(Boolean) as string[];
+  const infographicAssets = infographicAssetIds.length
+    ? await getInfographicAssets(infographicAssetIds)
+    : new Map<string, InfographicAssetRow>();
 
   return {
     classes,
@@ -290,15 +313,22 @@ export async function getModuleEditorData(
       coverImagePath: moduleRow.cover_image_path ?? '',
       status: moduleRow.status,
       isPublic: moduleRow.is_public ?? true,
-      lessons: ((lessonsResult.data ?? []) as LessonRow[]).map((lesson, index) => ({
+      lessons: lessonRows.map((lesson, index) => {
+        const infographicAsset = lesson.infographic_asset_id ? infographicAssets.get(lesson.infographic_asset_id) : undefined;
+        return {
         id: lesson.id,
         title: lesson.title,
         content: lesson.content ?? '',
         videoUrl: lesson.video_url ?? '',
         infographicUrl: lesson.infographic_url ?? '',
+        infographicAssetId: lesson.infographic_asset_id ?? undefined,
+        infographicStatus: infographicAsset?.processing_status,
+        infographicSlideCount: infographicAsset?.slide_count ?? undefined,
+        infographicError: infographicAsset?.error_message ?? null,
         reflectionPrompt: lesson.reflection_prompt ?? '',
         orderIndex: lesson.order_index ?? index + 1,
-      })),
+        };
+      }),
       quiz: quizRow
         ? {
             id: quizRow.id,
@@ -326,6 +356,15 @@ export async function getModuleEditorData(
       .order('order_index', { ascending: true });
 
     return ((data ?? []) as QuestionRow[]).map(mapQuestionRow);
+  }
+
+  async function getInfographicAssets(assetIds: string[]) {
+    const { data } = await supabase
+      .from('infographic_assets')
+      .select('id, lesson_id, processing_status, slide_count, error_message')
+      .in('id', assetIds);
+
+    return new Map(((data ?? []) as InfographicAssetRow[]).map((asset) => [asset.id, asset]));
   }
 }
 

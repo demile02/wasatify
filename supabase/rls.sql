@@ -179,7 +179,8 @@ begin
         'achievements',
         'student_achievements',
         'announcements',
-        'media_assets'
+        'media_assets',
+        'infographic_assets'
       )
   loop
     execute format(
@@ -205,6 +206,7 @@ alter table public.achievements enable row level security;
 alter table public.student_achievements enable row level security;
 alter table public.announcements enable row level security;
 alter table public.media_assets enable row level security;
+alter table public.infographic_assets enable row level security;
 
 create policy "profiles_admin_all"
 on public.profiles for all
@@ -781,4 +783,54 @@ to authenticated
 using (
   owner_id = auth.uid()
   or (public.is_teacher() and module_id is not null and public.teacher_owns_module(module_id))
+);
+
+create policy "infographic_assets_admin_all"
+on public.infographic_assets for all
+to authenticated
+using (public.is_admin())
+with check (public.is_admin());
+
+create policy "infographic_assets_select_allowed"
+on public.infographic_assets for select
+to authenticated
+using (
+  created_by = auth.uid()
+  or (module_id is not null and public.teacher_owns_module(module_id))
+  or (module_id is not null and public.student_can_read_module(module_id, auth.uid()))
+  or (lesson_id is not null and exists (
+    select 1
+    from public.lessons l
+    where l.id = lesson_id
+      and public.student_can_read_module(l.module_id, auth.uid())
+  ))
+);
+
+create policy "infographic_assets_insert_teacher_own"
+on public.infographic_assets for insert
+to authenticated
+with check (
+  created_by = auth.uid()
+  and (public.is_teacher() or public.is_admin())
+  and (module_id is null or public.teacher_owns_module(module_id))
+);
+
+create policy "infographic_assets_update_teacher_own"
+on public.infographic_assets for update
+to authenticated
+using (
+  created_by = auth.uid()
+  or (module_id is not null and public.teacher_owns_module(module_id))
+)
+with check (
+  created_by = auth.uid()
+  and (module_id is null or public.teacher_owns_module(module_id))
+);
+
+create policy "infographic_assets_delete_teacher_own"
+on public.infographic_assets for delete
+to authenticated
+using (
+  created_by = auth.uid()
+  or (module_id is not null and public.teacher_owns_module(module_id))
 );

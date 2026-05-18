@@ -108,7 +108,7 @@ export default async function HomePage() {
                 </Link>
               </Button>
               <Button asChild variant="outline" size="lg">
-                <Link href="/login">
+                <Link href="/demo">
                   <PlayCircle className="h-5 w-5" />
                   Lihat Demo
                 </Link>

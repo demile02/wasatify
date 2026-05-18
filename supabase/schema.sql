@@ -194,10 +194,29 @@ alter table public.media_assets
   drop constraint if exists media_assets_module_id_fkey,
   add constraint media_assets_module_id_fkey foreign key (module_id) references public.modules(id) on delete set null;
 
+create table if not exists public.infographic_assets (
+  id uuid primary key default gen_random_uuid(),
+  module_id uuid references public.modules(id) on delete cascade,
+  lesson_id uuid,
+  media_asset_id uuid references public.media_assets(id) on delete set null,
+  title text not null,
+  source_file_url text not null,
+  source_file_type text not null,
+  processing_status text not null default 'pending'
+    check (processing_status in ('pending', 'processing', 'ready', 'failed')),
+  slide_count integer not null default 0 check (slide_count >= 0),
+  slide_images jsonb not null default '[]'::jsonb,
+  error_message text,
+  created_by uuid references public.profiles(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create table if not exists public.lessons (
   id uuid primary key default gen_random_uuid(),
   module_id uuid not null references public.modules(id) on delete cascade,
   media_asset_id uuid references public.media_assets(id) on delete set null,
+  infographic_asset_id uuid references public.infographic_assets(id) on delete set null,
   title text not null,
   slug text not null,
   type public.lesson_type not null default 'article',
@@ -216,7 +235,14 @@ alter table public.lessons
   add column if not exists infographic_url text;
 
 alter table public.lessons
+  add column if not exists infographic_asset_id uuid references public.infographic_assets(id) on delete set null;
+
+alter table public.lessons
   add column if not exists reflection_prompt text;
+
+alter table public.infographic_assets
+  drop constraint if exists infographic_assets_lesson_id_fkey,
+  add constraint infographic_assets_lesson_id_fkey foreign key (lesson_id) references public.lessons(id) on delete cascade;
 
 create table if not exists public.quizzes (
   id uuid primary key default gen_random_uuid(),
@@ -407,6 +433,11 @@ create trigger set_media_assets_updated_at
 before update on public.media_assets
 for each row execute function public.set_updated_at();
 
+drop trigger if exists set_infographic_assets_updated_at on public.infographic_assets;
+create trigger set_infographic_assets_updated_at
+before update on public.infographic_assets
+for each row execute function public.set_updated_at();
+
 drop trigger if exists set_lessons_updated_at on public.lessons;
 create trigger set_lessons_updated_at
 before update on public.lessons
@@ -535,7 +566,12 @@ create index if not exists modules_slug_idx on public.modules(slug);
 create index if not exists media_assets_owner_id_idx on public.media_assets(owner_id);
 create index if not exists media_assets_module_id_idx on public.media_assets(module_id);
 
+create index if not exists infographic_assets_module_id_idx on public.infographic_assets(module_id);
+create index if not exists infographic_assets_lesson_id_idx on public.infographic_assets(lesson_id);
+create index if not exists infographic_assets_created_by_idx on public.infographic_assets(created_by);
+
 create index if not exists lessons_module_id_idx on public.lessons(module_id);
+create index if not exists lessons_infographic_asset_id_idx on public.lessons(infographic_asset_id);
 
 create index if not exists quizzes_module_id_idx on public.quizzes(module_id);
 create index if not exists quizzes_teacher_id_idx on public.quizzes(teacher_id);
