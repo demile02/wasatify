@@ -1,4 +1,4 @@
-const CACHE_NAME = 'wasatify-static-v3';
+const CACHE_NAME = 'wasatify-static-v4';
 const STATIC_ASSET_PATHS = [
   '/manifest.webmanifest',
   '/favicon.ico',

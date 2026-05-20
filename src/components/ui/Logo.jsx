@@ -1,4 +1,3 @@
-import { Sparkles } from 'lucide-react';
 import { cn } from '../../utils/cn';
 
 export function Logo({ light = false, subtitle = 'Wasathiyah Smart Learning', compact = false }) {
@@ -6,11 +5,11 @@ export function Logo({ light = false, subtitle = 'Wasathiyah Smart Learning', co
     <div className="flex items-center gap-3">
       <div
         className={cn(
-          'grid h-11 w-11 place-items-center rounded-2xl border shadow-sm',
-          light ? 'border-cream/30 bg-cream text-emerald-800' : 'border-emerald-100 bg-emerald-50 text-emerald-700',
+          'grid h-11 w-11 overflow-hidden rounded-2xl border shadow-sm',
+          light ? 'border-cream/30 bg-dark-emerald' : 'border-emerald-100 bg-dark-emerald',
         )}
       >
-        <Sparkles className="h-6 w-6" />
+        <img src="/brand/wasatify-logo.png" alt="" className="h-full w-full object-cover" />
       </div>
       {!compact && (
         <div>
