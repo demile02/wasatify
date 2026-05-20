@@ -17,7 +17,7 @@ export const metadata: Metadata = {
   verification: {
     google: 'Qu22mbnX8hETZAIqQWmDFpMM4VJT1-REUmWp3XcJoDI',
   },
-  manifest: '/manifest.webmanifest',
+  manifest: '/manifest.webmanifest?v=20260520',
   applicationName: 'WASATIFY',
   appleWebApp: {
     capable: true,
@@ -26,10 +26,14 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
-      { url: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+      { url: '/favicon.ico' },
+      { url: '/icons/favicon-16-v2.png', sizes: '16x16', type: 'image/png' },
+      { url: '/icons/favicon-32-v2.png', sizes: '32x32', type: 'image/png' },
+      { url: '/icons/wasatify-icon-192-v2.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icons/wasatify-icon-512-v2.png', sizes: '512x512', type: 'image/png' },
     ],
-    apple: [{ url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' }],
+    shortcut: [{ url: '/favicon.ico' }],
+    apple: [{ url: '/icons/apple-touch-icon-v2.png', sizes: '180x180', type: 'image/png' }],
   },
 };
 

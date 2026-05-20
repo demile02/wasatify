@@ -1,9 +1,13 @@
-const CACHE_NAME = 'wasatify-static-v2';
+const CACHE_NAME = 'wasatify-static-v3';
 const STATIC_ASSET_PATHS = [
   '/manifest.webmanifest',
-  '/icons/icon-192.png',
-  '/icons/icon-512.png',
-  '/icons/maskable-icon-512.png',
+  '/favicon.ico',
+  '/icons/favicon-16-v2.png',
+  '/icons/favicon-32-v2.png',
+  '/icons/apple-touch-icon-v2.png',
+  '/icons/wasatify-icon-192-v2.png',
+  '/icons/wasatify-icon-512-v2.png',
+  '/icons/wasatify-maskable-512-v2.png',
 ];
 
 self.addEventListener('install', (event) => {
