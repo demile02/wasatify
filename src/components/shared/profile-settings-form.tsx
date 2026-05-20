@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Camera, Trash2, Upload } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import Cropper, { type Area } from 'react-easy-crop';
 import { toast } from 'sonner';
 import { SectionCard } from '@/components/shared/section-card';
 import { UserAvatar } from '@/components/shared/user-avatar';
@@ -17,6 +18,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { getRoleDashboardPath } from '@/lib/auth/roles';
 import { createClient } from '@/lib/supabase/client';
 import type { Profile } from '@/lib/types';
 
@@ -32,22 +34,17 @@ const targetAvatarSize = 1.9 * 1024 * 1024;
 const avatarCanvasSizes = [1024, 900, 800, 700, 600];
 const webpMime = 'image/webp';
 
-type CropState = {
-  zoom: number;
-  offsetX: number;
-  offsetY: number;
-};
-
 export function ProfileSettingsForm({ profile, roleLabel, roleDescription }: ProfileSettingsFormProps) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const cropImageRef = useRef<HTMLImageElement>(null);
   const [fullName, setFullName] = useState(profile.full_name);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [cropSourceUrl, setCropSourceUrl] = useState<string | null>(null);
   const [cropSourceName, setCropSourceName] = useState('avatar');
-  const [cropState, setCropState] = useState<CropState>({ zoom: 1, offsetX: 0, offsetY: 0 });
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
   const [isCropDialogOpen, setIsCropDialogOpen] = useState(false);
   const [isCropping, setIsCropping] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState(profile.avatar_url ?? null);
@@ -90,20 +87,22 @@ export function ProfileSettingsForm({ profile, roleLabel, roleDescription }: Pro
     if (cropSourceUrl) URL.revokeObjectURL(cropSourceUrl);
     setCropSourceName(file.name);
     setCropSourceUrl(URL.createObjectURL(file));
-    setCropState({ zoom: 1, offsetX: 0, offsetY: 0 });
+    setCrop({ x: 0, y: 0 });
+    setZoom(1);
+    setCroppedAreaPixels(null);
     setIsCropDialogOpen(true);
     if (fileInputRef.current) fileInputRef.current.value = '';
   }
 
   async function handleApplyCrop() {
-    if (!cropImageRef.current) {
-      toast.error('Gambar belum siap diproses.');
+    if (!cropSourceUrl || !croppedAreaPixels) {
+      toast.error('Area crop belum siap. Coba geser atau zoom gambar sekali lagi.');
       return;
     }
 
     setIsCropping(true);
     try {
-      const blob = await cropAndCompressAvatar(cropImageRef.current, cropState);
+      const blob = await cropAndCompressAvatar(cropSourceUrl, croppedAreaPixels);
       const fileName = `avatar-${profile.id}-${Date.now()}.webp`;
       const nextFile = new File([blob], fileName, { type: blob.type || webpMime });
 
@@ -173,6 +172,7 @@ export function ProfileSettingsForm({ profile, roleLabel, roleDescription }: Pro
         setPreviewUrl(null);
       }
       toast.success('Profil berhasil diperbarui.');
+      router.replace(getRoleDashboardPath(profile.role));
       router.refresh();
     } catch (error) {
       console.error('Profile save failed', error);
@@ -327,19 +327,21 @@ export function ProfileSettingsForm({ profile, roleLabel, roleDescription }: Pro
           </DialogHeader>
 
           <div className="grid gap-5">
-            <div className="mx-auto aspect-square w-full max-w-[420px] overflow-hidden rounded-3xl border border-border bg-slate-100 shadow-inner">
+            <div className="relative mx-auto aspect-square w-full max-w-[420px] overflow-hidden rounded-3xl border border-border bg-slate-950 shadow-inner">
               {cropSourceUrl && (
-                // eslint-disable-next-line @next/next/no-img-element -- Local object URL is used for client-side crop preview.
-                <img
-                  ref={cropImageRef}
-                  src={cropSourceUrl}
-                  alt="Preview crop foto profil"
-                  className="h-full w-full object-cover"
-                  style={{
-                    objectPosition: `${50 + cropState.offsetX}% ${50 + cropState.offsetY}%`,
-                    transform: `scale(${cropState.zoom})`,
-                    transformOrigin: 'center',
-                  }}
+                <Cropper
+                  image={cropSourceUrl}
+                  crop={crop}
+                  zoom={zoom}
+                  aspect={1}
+                  cropShape="rect"
+                  showGrid
+                  minZoom={1}
+                  maxZoom={4}
+                  objectFit="contain"
+                  onCropChange={setCrop}
+                  onZoomChange={setZoom}
+                  onCropComplete={(_, nextCroppedAreaPixels) => setCroppedAreaPixels(nextCroppedAreaPixels)}
                 />
               )}
             </div>
@@ -348,29 +350,14 @@ export function ProfileSettingsForm({ profile, roleLabel, roleDescription }: Pro
               <CropSlider
                 label="Zoom"
                 min={1}
-                max={3}
+                max={4}
                 step={0.05}
-                value={cropState.zoom}
-                onChange={(zoom) => setCropState((current) => ({ ...current, zoom }))}
-              />
-              <CropSlider
-                label="Geser horizontal"
-                min={-50}
-                max={50}
-                step={1}
-                value={cropState.offsetX}
-                onChange={(offsetX) => setCropState((current) => ({ ...current, offsetX }))}
-              />
-              <CropSlider
-                label="Geser vertikal"
-                min={-50}
-                max={50}
-                step={1}
-                value={cropState.offsetY}
-                onChange={(offsetY) => setCropState((current) => ({ ...current, offsetY }))}
+                value={zoom}
+                onChange={setZoom}
               />
               <p className="text-xs leading-5 text-muted-foreground">
-                File dipilih: {cropSourceName}. Output avatar akan dibuat sebagai WebP sekitar maksimal 2MB.
+                File dipilih: {cropSourceName}. Geser foto langsung di area crop, lalu atur zoom jika perlu.
+                Output avatar akan dibuat sebagai WebP sekitar maksimal 2MB.
               </p>
             </div>
           </div>
@@ -428,7 +415,8 @@ function CropSlider({
   );
 }
 
-async function cropAndCompressAvatar(image: HTMLImageElement, crop: CropState) {
+async function cropAndCompressAvatar(imageUrl: string, cropPixels: Area) {
+  const image = await loadImage(imageUrl);
   const naturalWidth = image.naturalWidth;
   const naturalHeight = image.naturalHeight;
   if (!naturalWidth || !naturalHeight) throw new Error('Gambar belum selesai dimuat.');
@@ -440,17 +428,24 @@ async function cropAndCompressAvatar(image: HTMLImageElement, crop: CropState) {
     const context = canvas.getContext('2d');
     if (!context) throw new Error('Browser tidak mendukung pemrosesan gambar.');
 
-    const sourceSize = Math.max(1, Math.min(naturalWidth, naturalHeight) / crop.zoom);
-    const maxOffsetX = Math.max(0, (naturalWidth - sourceSize) / 2);
-    const maxOffsetY = Math.max(0, (naturalHeight - sourceSize) / 2);
-    const centerX = naturalWidth / 2 + (crop.offsetX / 50) * maxOffsetX;
-    const centerY = naturalHeight / 2 + (crop.offsetY / 50) * maxOffsetY;
-    const sourceX = clamp(centerX - sourceSize / 2, 0, naturalWidth - sourceSize);
-    const sourceY = clamp(centerY - sourceSize / 2, 0, naturalHeight - sourceSize);
+    const sourceX = clamp(cropPixels.x, 0, naturalWidth - 1);
+    const sourceY = clamp(cropPixels.y, 0, naturalHeight - 1);
+    const sourceWidth = Math.max(1, Math.min(cropPixels.width, naturalWidth - sourceX));
+    const sourceHeight = Math.max(1, Math.min(cropPixels.height, naturalHeight - sourceY));
 
     context.fillStyle = '#ffffff';
     context.fillRect(0, 0, size, size);
-    context.drawImage(image, sourceX, sourceY, sourceSize, sourceSize, 0, 0, size, size);
+    context.drawImage(
+      image,
+      sourceX,
+      sourceY,
+      sourceWidth,
+      sourceHeight,
+      0,
+      0,
+      size,
+      size,
+    );
 
     for (let quality = 0.9; quality >= 0.65; quality -= 0.05) {
       const blob = await canvasToBlob(canvas, webpMime, Number(quality.toFixed(2)));
@@ -459,6 +454,15 @@ async function cropAndCompressAvatar(image: HTMLImageElement, crop: CropState) {
   }
 
   throw new Error('Gambar gagal dikompres di bawah 2MB. Coba crop area lebih kecil atau gunakan gambar lain.');
+}
+
+function loadImage(src: string) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error('Gagal membaca file gambar untuk crop.'));
+    image.src = src;
+  });
 }
 
 function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality: number) {

@@ -156,7 +156,7 @@ export async function getStudentDashboardData(student?: Profile | string): Promi
     const modules = await getStudentModules(student);
     const [profileStats, quizAttemptsCount, announcements, activities] = await Promise.all([
       getProfileStats(supabase, context),
-      getQuizAttemptsCount(supabase, context.id),
+      getQuizAttemptsCount(supabase, context.id, modules),
       getStudentAnnouncements(supabase, context.classId),
       getRecentActivities(supabase, context.id, modules),
     ]);
@@ -228,10 +228,13 @@ async function getProfileStats(
   };
 }
 
-async function getQuizAttemptsCount(supabase: SupabaseServerClient, studentId?: string) {
+async function getQuizAttemptsCount(
+  supabase: SupabaseServerClient,
+  studentId: string | undefined,
+  modules: StudentModule[],
+) {
   if (!studentId) return 0;
 
-  const modules = await getStudentModules(studentId);
   const moduleIds = modules.map((moduleItem) => moduleItem.id);
   if (!moduleIds.length) return 0;
 

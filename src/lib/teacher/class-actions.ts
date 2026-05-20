@@ -20,6 +20,8 @@ export type ResetStudentProgressResult = {
   error?: string;
 };
 
+export type ResetStudentProgressDataType = 'progress' | 'quiz' | 'reflection' | 'all';
+
 const saveTeacherClassSchema = z.object({
   classId: z.string().optional(),
   name: z.string().trim().min(2, 'Nama kelas minimal 2 karakter.'),
@@ -32,6 +34,7 @@ const resetStudentProgressSchema = z.object({
   classId: z.string().min(1, 'Kelas tidak valid.'),
   studentId: z.string().min(1, 'Siswa tidak valid.'),
   moduleId: z.string().min(1).optional(),
+  dataType: z.enum(['progress', 'quiz', 'reflection', 'all']).default('all'),
 });
 
 export async function saveTeacherClassAction(input: {
@@ -140,6 +143,7 @@ export async function resetStudentProgressAction(input: {
   classId: string;
   studentId: string;
   moduleId?: string;
+  dataType?: ResetStudentProgressDataType;
 }): Promise<ResetStudentProgressResult> {
   const parsed = resetStudentProgressSchema.safeParse(input);
   if (!parsed.success) {
@@ -213,30 +217,53 @@ export async function resetStudentProgressAction(input: {
 
     const quizIds = ((quizRows ?? []) as { id: string }[]).map((quiz) => quiz.id);
 
-    const deleteResults = await Promise.all([
-      supabase
-        .from('lesson_progress')
-        .delete()
-        .eq('student_id', parsed.data.studentId)
-        .in('module_id', moduleIds),
-      supabase
-        .from('module_progress')
-        .delete()
-        .eq('student_id', parsed.data.studentId)
-        .in('module_id', moduleIds),
-      supabase
-        .from('reflections')
-        .delete()
-        .eq('student_id', parsed.data.studentId)
-        .in('module_id', moduleIds),
-      quizIds.length
-        ? supabase
-            .from('quiz_attempts')
-            .delete()
-            .eq('student_id', parsed.data.studentId)
-            .in('quiz_id', quizIds)
-        : Promise.resolve({ error: null }),
-    ]);
+    const resetJobs: Array<PromiseLike<{ error: unknown }>> = [];
+    const shouldResetProgress = parsed.data.dataType === 'progress' || parsed.data.dataType === 'all';
+    const shouldResetQuiz = parsed.data.dataType === 'quiz' || parsed.data.dataType === 'all';
+    const shouldResetReflection = parsed.data.dataType === 'reflection' || parsed.data.dataType === 'all';
+
+    if (shouldResetProgress) {
+      resetJobs.push(
+        supabase
+          .from('lesson_progress')
+          .delete()
+          .eq('student_id', parsed.data.studentId)
+          .in('module_id', moduleIds),
+      );
+      resetJobs.push(
+        supabase
+          .from('module_progress')
+          .delete()
+          .eq('student_id', parsed.data.studentId)
+          .in('module_id', moduleIds),
+      );
+    }
+
+    if (shouldResetReflection) {
+      resetJobs.push(
+        supabase
+          .from('reflections')
+          .delete()
+          .eq('student_id', parsed.data.studentId)
+          .in('module_id', moduleIds),
+      );
+    }
+
+    if (shouldResetQuiz && quizIds.length) {
+      resetJobs.push(
+        supabase
+          .from('quiz_attempts')
+          .delete()
+          .eq('student_id', parsed.data.studentId)
+          .in('quiz_id', quizIds),
+      );
+    }
+
+    if (!resetJobs.length) {
+      return { ok: false, error: 'Tidak ada data yang cocok untuk direset.' };
+    }
+
+    const deleteResults = await Promise.all(resetJobs);
 
     const deleteError = deleteResults.find((result) => result.error)?.error;
     if (deleteError) throw deleteError;

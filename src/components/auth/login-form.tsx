@@ -96,7 +96,7 @@ export function LoginForm({ nextPath, confirmed = false }: LoginFormProps) {
       }
 
       toast.success('Login berhasil.');
-      router.push(nextPath && nextPath.startsWith('/') ? nextPath : getRoleDashboardPath(profile.role));
+      router.replace(nextPath && nextPath.startsWith('/') ? nextPath : getRoleDashboardPath(profile.role));
       router.refresh();
     } catch (nextError) {
       const message = getAuthErrorMessage(nextError);

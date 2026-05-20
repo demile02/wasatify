@@ -9,6 +9,7 @@ export type TeacherClassListItem = {
   gradeLevel: string | null;
   academicYear: string | null;
   joinCode: string;
+  classCode: string;
   totalStudents: number;
   activeStudents: number;
   averageProgress: number;
@@ -22,6 +23,7 @@ type ClassRow = {
   grade_level: string | null;
   academic_year: string | null;
   join_code: string;
+  class_code: string | null;
 };
 
 type StudentRow = {
@@ -57,7 +59,7 @@ export async function getTeacherClasses(profile: Profile): Promise<TeacherClassL
     const supabase = await createClient();
     let classQuery = supabase
       .from('classes')
-      .select('id, name, description, grade_level, academic_year, join_code')
+      .select('id, name, description, grade_level, academic_year, join_code, class_code')
       .order('created_at', { ascending: false });
 
     if (profile.role === 'teacher') {
@@ -124,6 +126,7 @@ export async function getTeacherClasses(profile: Profile): Promise<TeacherClassL
         gradeLevel: classItem.grade_level,
         academicYear: classItem.academic_year,
         joinCode: classItem.join_code,
+        classCode: classItem.class_code ?? classItem.join_code,
         totalStudents: classStudents.length,
         activeStudents: classStudents.filter((student) => {
           if (!student.last_active_at) return false;

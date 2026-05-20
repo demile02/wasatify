@@ -1,5 +1,6 @@
 import { AuthShell } from '@/components/auth/auth-shell';
 import { LoginForm } from '@/components/auth/login-form';
+import { redirectAuthenticatedUser } from '@/lib/auth/redirects';
 
 type LoginPageProps = {
   searchParams: Promise<{
@@ -9,6 +10,8 @@ type LoginPageProps = {
 };
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
+  await redirectAuthenticatedUser();
+
   const params = await searchParams;
 
   return (

@@ -86,6 +86,7 @@ create table if not exists public.classes (
   grade_level text,
   academic_year text,
   join_code text not null unique default upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 8)),
+  class_code text not null unique default ('KLS-' || upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 6))),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -95,6 +96,63 @@ alter table public.profiles
 
 alter table public.classes
   add column if not exists academic_year text;
+
+alter table public.classes
+  add column if not exists class_code text;
+
+update public.classes
+set class_code = coalesce(nullif(class_code, ''), 'KLS-' || upper(substr(replace(coalesce(join_code, gen_random_uuid()::text), '-', ''), 1, 6)))
+where class_code is null or class_code = '';
+
+alter table public.classes
+  alter column class_code set default ('KLS-' || upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 6)));
+
+alter table public.classes
+  alter column class_code set not null;
+
+create unique index if not exists classes_class_code_key on public.classes(class_code);
+
+create table if not exists public.teacher_invite_codes (
+  id uuid primary key default gen_random_uuid(),
+  code text not null unique,
+  created_by uuid references public.profiles(id) on delete set null,
+  used_by uuid references public.profiles(id) on delete set null,
+  used_at timestamptz,
+  expires_at timestamptz,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+create or replace function public.validate_teacher_invite_code(input_code text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.teacher_invite_codes tic
+    where upper(trim(tic.code)) = upper(trim(input_code))
+      and tic.is_active = true
+      and tic.used_at is null
+      and (tic.expires_at is null or tic.expires_at > now())
+  )
+$$;
+
+create or replace function public.validate_class_code(input_class_code text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.classes c
+    where upper(trim(c.class_code)) = upper(trim(input_class_code))
+  )
+$$;
 
 alter table public.profiles
   add column if not exists last_active_at timestamptz;
@@ -113,6 +171,8 @@ begin
   end if;
 end $$;
 
+drop function if exists public.get_public_classes_for_registration();
+
 create or replace function public.get_public_classes_for_registration()
 returns table (
   id uuid,
@@ -120,7 +180,8 @@ returns table (
   grade_level text,
   academic_year text,
   teacher_id uuid,
-  join_code text
+  join_code text,
+  class_code text
 )
 language sql
 security definer
@@ -132,7 +193,8 @@ as $$
     c.grade_level,
     c.academic_year,
     c.teacher_id,
-    c.join_code
+    c.join_code,
+    c.class_code
   from public.classes c
   order by c.name asc;
 $$;
@@ -403,6 +465,14 @@ update public.announcements
 set status = case when published_at is null then 'draft' else 'published' end
 where status = 'draft' and published_at is not null;
 
+create table if not exists public.notification_reads (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  notification_key text not null,
+  read_at timestamptz not null default now(),
+  unique (user_id, notification_key)
+);
+
 create or replace function public.set_updated_at()
 returns trigger
 language plpgsql
@@ -493,6 +563,9 @@ declare
   requested_role text;
   safe_role public.app_role;
   selected_class_id uuid;
+  requested_class_code text;
+  requested_teacher_code text;
+  teacher_invite_id uuid;
 begin
   requested_role := new.raw_user_meta_data->>'role';
   safe_role := case
@@ -500,8 +573,35 @@ begin
     else 'student'::public.app_role
   end;
 
-  if (new.raw_user_meta_data->>'class_id') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
-    selected_class_id := (new.raw_user_meta_data->>'class_id')::uuid;
+  if safe_role = 'teacher' then
+    requested_teacher_code := upper(trim(coalesce(new.raw_user_meta_data->>'teacher_invite_code', '')));
+
+    select tic.id
+    into teacher_invite_id
+    from public.teacher_invite_codes tic
+    where upper(trim(tic.code)) = requested_teacher_code
+      and tic.is_active = true
+      and tic.used_at is null
+      and (tic.expires_at is null or tic.expires_at > now())
+    for update;
+
+    if teacher_invite_id is null then
+      raise exception 'Kode guru tidak valid atau sudah digunakan.';
+    end if;
+  end if;
+
+  if safe_role = 'student' then
+    requested_class_code := upper(trim(coalesce(new.raw_user_meta_data->>'class_code', '')));
+
+    select c.id
+    into selected_class_id
+    from public.classes c
+    where upper(trim(c.class_code)) = requested_class_code
+    limit 1;
+
+    if selected_class_id is null then
+      raise exception 'Kode kelas tidak valid.';
+    end if;
   end if;
 
   insert into public.profiles (id, role, full_name, email, avatar_url, school_name, class_id, class_name, subject)
@@ -532,6 +632,11 @@ begin
         updated_at = now();
 
   if safe_role = 'teacher' then
+    update public.teacher_invite_codes
+    set used_by = new.id,
+        used_at = now()
+    where id = teacher_invite_id;
+
     insert into public.classes (teacher_id, name, description, grade_level, academic_year)
     values (
       new.id,
@@ -597,3 +702,6 @@ create index if not exists student_achievements_achievement_id_idx on public.stu
 
 create index if not exists announcements_teacher_id_idx on public.announcements(teacher_id);
 create index if not exists announcements_class_id_idx on public.announcements(class_id);
+
+create index if not exists notification_reads_user_id_idx on public.notification_reads(user_id);
+create index if not exists notification_reads_notification_key_idx on public.notification_reads(notification_key);

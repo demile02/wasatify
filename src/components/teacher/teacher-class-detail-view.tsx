@@ -22,7 +22,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { formatDateTime } from '@/lib/date';
-import { resetStudentProgressAction } from '@/lib/teacher/class-actions';
+import { resetStudentProgressAction, type ResetStudentProgressDataType } from '@/lib/teacher/class-actions';
 import type { TeacherClassActivity, TeacherClassDetailData, TeacherClassModule, TeacherStudentProgress } from '@/lib/teacher/analytics';
 import { cn } from '@/lib/utils';
 
@@ -40,9 +40,38 @@ const tabs: { id: TabId; label: string }[] = [
   { id: 'reflections', label: 'Refleksi' },
 ];
 
+const resetDataTypes: Array<{
+  value: ResetStudentProgressDataType;
+  label: string;
+  description: string;
+}> = [
+  {
+    value: 'progress',
+    label: 'Progress modul/lesson saja',
+    description: 'Hapus module_progress dan lesson_progress, tanpa menghapus kuis/refleksi.',
+  },
+  {
+    value: 'quiz',
+    label: 'Kuis saja',
+    description: 'Hapus quiz_attempts untuk modul terkait.',
+  },
+  {
+    value: 'reflection',
+    label: 'Refleksi saja',
+    description: 'Hapus refleksi siswa untuk modul terkait.',
+  },
+  {
+    value: 'all',
+    label: 'Semua data modul',
+    description: 'Hapus progress, kuis, dan refleksi sekaligus.',
+  },
+];
+
 export function TeacherClassDetailView({ data }: TeacherClassDetailViewProps) {
   const [activeTab, setActiveTab] = useState<TabId>('overview');
   const [query, setQuery] = useState('');
+  const [quizQuery, setQuizQuery] = useState('');
+  const [reflectionQuery, setReflectionQuery] = useState('');
   const [resetStudent, setResetStudent] = useState<TeacherStudentProgress | null>(null);
 
   const filteredStudents = useMemo(() => {
@@ -56,6 +85,16 @@ export function TeacherClassDetailView({ data }: TeacherClassDetailViewProps) {
       );
     });
   }, [data.students, query]);
+
+  const filteredQuizActivities = useMemo(
+    () => filterActivitiesByQuery(data.activities, 'quiz', quizQuery),
+    [data.activities, quizQuery],
+  );
+
+  const filteredReflectionActivities = useMemo(
+    () => filterActivitiesByQuery(data.activities, 'reflection', reflectionQuery),
+    [data.activities, reflectionQuery],
+  );
 
   return (
     <div className="mt-8 min-w-0 overflow-x-hidden">
@@ -213,15 +252,47 @@ export function TeacherClassDetailView({ data }: TeacherClassDetailViewProps) {
 
         {activeTab === 'quizzes' && (
           <SectionCard className="min-w-0">
-            <p className="font-bold text-ink">Nilai & Evaluasi</p>
-            <ActivityList activities={data.activities.filter((activity) => activity.type === 'quiz')} emptyTitle="Belum ada nilai kuis" />
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="font-bold text-ink">Nilai & Evaluasi</p>
+              <StudentSearch
+                value={quizQuery}
+                onChange={setQuizQuery}
+                placeholder="Cari siswa, email, modul, atau kuis..."
+                className="mt-0 sm:max-w-md"
+              />
+            </div>
+            <ActivityList
+              activities={filteredQuizActivities}
+              emptyTitle={quizQuery.trim() ? 'Nilai kuis tidak ditemukan' : 'Belum ada nilai kuis'}
+              emptyDescription={
+                quizQuery.trim()
+                  ? 'Tidak ada nilai yang cocok dengan pencarian.'
+                  : 'Nilai kuis siswa akan tampil setelah mereka mengerjakan kuis.'
+              }
+            />
           </SectionCard>
         )}
 
         {activeTab === 'reflections' && (
           <SectionCard className="min-w-0">
-            <p className="font-bold text-ink">Refleksi</p>
-            <ActivityList activities={data.activities.filter((activity) => activity.type === 'reflection')} emptyTitle="Belum ada refleksi" />
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="font-bold text-ink">Refleksi</p>
+              <StudentSearch
+                value={reflectionQuery}
+                onChange={setReflectionQuery}
+                placeholder="Cari siswa, email, modul, atau isi refleksi..."
+                className="mt-0 sm:max-w-md"
+              />
+            </div>
+            <ActivityList
+              activities={filteredReflectionActivities}
+              emptyTitle={reflectionQuery.trim() ? 'Refleksi tidak ditemukan' : 'Belum ada refleksi'}
+              emptyDescription={
+                reflectionQuery.trim()
+                  ? 'Tidak ada refleksi yang cocok dengan pencarian.'
+                  : 'Refleksi siswa akan tampil setelah mereka mengirimkan refleksi.'
+              }
+            />
           </SectionCard>
         )}
       </div>
@@ -245,10 +316,12 @@ function StudentSearch({
   value,
   onChange,
   className,
+  placeholder = 'Cari siswa...',
 }: {
   value: string;
   onChange: (value: string) => void;
   className?: string;
+  placeholder?: string;
 }) {
   return (
     <div className={cn('mt-4 flex min-h-12 items-center gap-2 rounded-xl border border-border bg-white px-4 shadow-sm', className)}>
@@ -256,11 +329,42 @@ function StudentSearch({
       <input
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        placeholder="Cari siswa..."
+        placeholder={placeholder}
         className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground/70"
       />
     </div>
   );
+}
+
+function filterActivitiesByQuery(
+  activities: TeacherClassActivity[],
+  type: TeacherClassActivity['type'],
+  query: string,
+) {
+  const normalizedQuery = query.trim().toLowerCase();
+  const typedActivities = activities.filter((activity) => activity.type === type);
+
+  const filtered = normalizedQuery
+    ? typedActivities.filter((activity) => {
+        const searchableText = [
+          activity.title,
+          activity.description,
+          activity.studentName,
+          activity.studentEmail,
+          activity.moduleTitle,
+          activity.quizTitle,
+          activity.reflectionText,
+          activity.actionText,
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+
+        return searchableText.includes(normalizedQuery);
+      })
+    : typedActivities;
+
+  return [...filtered].sort((first, second) => new Date(second.date).getTime() - new Date(first.date).getTime());
 }
 
 function StudentProgressTable({
@@ -343,6 +447,7 @@ function ResetProgressDialog({
   const router = useRouter();
   const [mode, setMode] = useState<'all' | 'module'>('all');
   const [moduleId, setModuleId] = useState('');
+  const [dataType, setDataType] = useState<ResetStudentProgressDataType>('all');
   const [isPending, startTransition] = useTransition();
   const selectableModules = modules.filter((moduleItem) => moduleItem.status === 'published');
   const canSubmit = Boolean(student && (mode === 'all' || moduleId));
@@ -359,6 +464,7 @@ function ResetProgressDialog({
         classId,
         studentId: student.id,
         moduleId: mode === 'module' ? moduleId : undefined,
+        dataType,
       });
 
       if (!result.ok) {
@@ -370,6 +476,7 @@ function ResetProgressDialog({
       onOpenChange(false);
       setMode('all');
       setModuleId('');
+      setDataType('all');
       router.refresh();
     });
   }
@@ -380,7 +487,7 @@ function ResetProgressDialog({
         <DialogHeader>
           <DialogTitle>Reset progress siswa ini?</DialogTitle>
           <DialogDescription>
-            Data progress, lesson, kuis, dan refleksi untuk modul milik guru kelas akan dihapus. Reset tidak dapat dibatalkan.
+            Pilih scope modul dan jenis data yang ingin direset. Reset tidak dapat dibatalkan.
           </DialogDescription>
         </DialogHeader>
 
@@ -400,7 +507,7 @@ function ResetProgressDialog({
               )}
             >
               Reset semua progress
-              <span className="mt-1 block text-xs font-semibold text-muted-foreground">Hanya modul milik guru kelas ini.</span>
+              <span className="mt-1 block text-xs font-semibold text-muted-foreground">Semua modul milik guru kelas ini.</span>
             </button>
             <button
               type="button"
@@ -437,6 +544,30 @@ function ResetProgressDialog({
               )}
             </div>
           )}
+
+          <div>
+            <p className="text-sm font-bold text-ink">Tipe data yang direset</p>
+            <div className="mt-2 grid gap-3 sm:grid-cols-2">
+              {resetDataTypes.map((item) => (
+                <button
+                  key={item.value}
+                  type="button"
+                  onClick={() => setDataType(item.value)}
+                  className={cn(
+                    'rounded-2xl border p-4 text-left text-sm font-bold transition',
+                    dataType === item.value ? 'border-primary bg-mint text-primary' : 'border-border bg-white text-foreground',
+                  )}
+                >
+                  {item.label}
+                  <span className="mt-1 block text-xs font-semibold text-muted-foreground">{item.description}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+            Reset tidak dapat dibatalkan. XP dan streak tidak otomatis dikurangi pada MVP ini.
+          </div>
         </div>
 
         <DialogFooter>
@@ -452,14 +583,22 @@ function ResetProgressDialog({
   );
 }
 
-function ActivityList({ activities, emptyTitle = 'Belum ada aktivitas' }: { activities: TeacherClassActivity[]; emptyTitle?: string }) {
+function ActivityList({
+  activities,
+  emptyTitle = 'Belum ada aktivitas',
+  emptyDescription = 'Aktivitas kuis, refleksi, dan penyelesaian modul akan tampil di sini.',
+}: {
+  activities: TeacherClassActivity[];
+  emptyTitle?: string;
+  emptyDescription?: string;
+}) {
   if (!activities.length) {
     return (
       <EmptyState
         className="mt-5"
         icon={Activity}
         title={emptyTitle}
-        description="Aktivitas kuis, refleksi, dan penyelesaian modul akan tampil di sini."
+        description={emptyDescription}
       />
     );
   }
@@ -498,7 +637,7 @@ function ModuleStatusBadge({ status }: { status: 'published' | 'draft' | 'archiv
 
   return (
     <span className={cn('rounded-full border px-3 py-1 text-xs font-bold', className)}>
-      {status === 'published' ? 'Aktif' : status === 'draft' ? 'Draft' : 'Nonaktif'}
+      {status === 'published' ? 'Aktif' : status === 'draft' ? 'Draft' : 'Diarsipkan'}
     </span>
   );
 }

@@ -1,7 +1,10 @@
 import { AuthShell } from '@/components/auth/auth-shell';
 import { RegisterForm } from '@/components/auth/register-form';
+import { redirectAuthenticatedUser } from '@/lib/auth/redirects';
 
-export default function RegisterTeacherPage() {
+export default async function RegisterTeacherPage() {
+  await redirectAuthenticatedUser();
+
   return (
     <AuthShell
       title="Ruang Mengajar Lebih Terarah"

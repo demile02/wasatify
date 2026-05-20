@@ -100,7 +100,7 @@ as $$
     from public.quizzes q
     left join public.modules m on m.id = q.module_id
     where q.id = target_quiz_id
-      and (q.teacher_id = auth.uid() or m.teacher_id = auth.uid())
+      and (q.teacher_id = auth.uid() or coalesce(m.created_by, m.teacher_id) = auth.uid())
   )
 $$;
 
@@ -168,6 +168,7 @@ begin
       and tablename in (
         'profiles',
         'classes',
+        'teacher_invite_codes',
         'modules',
         'lessons',
         'quizzes',
@@ -179,6 +180,7 @@ begin
         'achievements',
         'student_achievements',
         'announcements',
+        'notification_reads',
         'media_assets',
         'infographic_assets'
       )
@@ -194,6 +196,7 @@ end $$;
 
 alter table public.profiles enable row level security;
 alter table public.classes enable row level security;
+alter table public.teacher_invite_codes enable row level security;
 alter table public.modules enable row level security;
 alter table public.lessons enable row level security;
 alter table public.quizzes enable row level security;
@@ -205,6 +208,7 @@ alter table public.reflections enable row level security;
 alter table public.achievements enable row level security;
 alter table public.student_achievements enable row level security;
 alter table public.announcements enable row level security;
+alter table public.notification_reads enable row level security;
 alter table public.media_assets enable row level security;
 alter table public.infographic_assets enable row level security;
 
@@ -254,6 +258,19 @@ using (true);
 
 grant select on public.classes to anon, authenticated;
 grant execute on function public.get_public_classes_for_registration() to anon, authenticated;
+grant execute on function public.validate_teacher_invite_code(text) to anon, authenticated;
+grant execute on function public.validate_class_code(text) to anon, authenticated;
+
+create policy "teacher_invite_codes_admin_all"
+on public.teacher_invite_codes for all
+to authenticated
+using (public.is_admin())
+with check (public.is_admin());
+
+create policy "teacher_invite_codes_select_related"
+on public.teacher_invite_codes for select
+to authenticated
+using (created_by = auth.uid() or used_by = auth.uid() or public.is_admin());
 
 create policy "classes_select_related"
 on public.classes for select
@@ -738,6 +755,33 @@ create policy "announcements_delete_teacher_own"
 on public.announcements for delete
 to authenticated
 using (public.is_teacher() and teacher_id = auth.uid());
+
+create policy "notification_reads_admin_all"
+on public.notification_reads for all
+to authenticated
+using (public.is_admin())
+with check (public.is_admin());
+
+create policy "notification_reads_select_own"
+on public.notification_reads for select
+to authenticated
+using (user_id = auth.uid());
+
+create policy "notification_reads_insert_own"
+on public.notification_reads for insert
+to authenticated
+with check (user_id = auth.uid());
+
+create policy "notification_reads_update_own"
+on public.notification_reads for update
+to authenticated
+using (user_id = auth.uid())
+with check (user_id = auth.uid());
+
+create policy "notification_reads_delete_own"
+on public.notification_reads for delete
+to authenticated
+using (user_id = auth.uid());
 
 create policy "media_assets_admin_all"
 on public.media_assets for all

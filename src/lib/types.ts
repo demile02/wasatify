@@ -93,6 +93,7 @@ export type Class = {
   grade_level?: string | null;
   academic_year?: string | null;
   join_code: string;
+  class_code?: string | null;
   created_at: string;
   updated_at: string;
 };

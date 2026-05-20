@@ -92,9 +92,16 @@ export function ReflectionForm({ modules, selectedModuleId, existingReflection, 
   return (
     <div className="space-y-6">
       <SectionCard>
-        <label htmlFor="reflection-module" className="text-sm font-bold text-ink">
-          {selectedModuleId ? 'Modul dipilih' : 'Pilih modul'}
-        </label>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <label htmlFor="reflection-module" className="text-sm font-bold text-ink">
+            {selectedModuleId ? 'Modul dipilih' : 'Pilih modul'}
+          </label>
+          {selectedModuleId && (
+            <Button asChild type="button" variant="ghost" size="sm" className="w-fit px-0 text-primary hover:bg-transparent">
+              <Link href="/student/reflection">Ganti Modul</Link>
+            </Button>
+          )}
+        </div>
         <Select value={moduleId} onValueChange={setModuleId} disabled={Boolean(selectedModuleId)}>
           <SelectTrigger id="reflection-module" className="mt-2 h-12 rounded-xl bg-white font-semibold">
             <SelectValue placeholder="Pilih modul untuk refleksi" />

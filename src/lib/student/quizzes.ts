@@ -36,6 +36,12 @@ export type StudentQuizHistoryItem = {
   passed: boolean;
   submittedAt: string;
   bestScore: number;
+  allowRetake: boolean;
+  attemptsUsed: number;
+  maxAttempts: number;
+  canRetake: boolean;
+  hasPassed: boolean;
+  hasReflection: boolean;
 };
 
 export type StudentQuizCenterData = {
@@ -204,6 +210,12 @@ function buildQuizHistory(
         passed: Boolean(attempt.passed) || Number(attempt.score ?? 0) >= quiz.passingScore,
         submittedAt: attempt.submitted_at ?? attempt.created_at,
         bestScore,
+        allowRetake: quiz.allowRetake,
+        attemptsUsed: quiz.attemptsUsed,
+        maxAttempts: quiz.maxAttempts,
+        canRetake: quiz.allowRetake && quiz.attemptsUsed < quiz.maxAttempts,
+        hasPassed: quiz.hasPassed,
+        hasReflection: quiz.hasReflection,
       });
     }
   }
@@ -278,6 +290,12 @@ function demoQuizCenterData(): StudentQuizCenterData {
           passed: true,
           submittedAt: new Date().toISOString(),
           bestScore: 90,
+          allowRetake: true,
+          attemptsUsed: 1,
+          maxAttempts: 3,
+          canRetake: true,
+          hasPassed: true,
+          hasReflection: false,
         },
       ]
     : [];

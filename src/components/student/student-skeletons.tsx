@@ -1,4 +1,5 @@
 import { cn } from '@/lib/utils';
+import { LoadingSpinner } from '@/components/shared/loading-spinner';
 
 type StudentPageSkeletonProps = {
   variant?: 'dashboard' | 'modules';
@@ -7,6 +8,7 @@ type StudentPageSkeletonProps = {
 export function StudentPageSkeleton({ variant = 'dashboard' }: StudentPageSkeletonProps) {
   return (
     <div className="animate-pulse">
+      <LoadingSpinner compact className="mb-6 min-h-20" />
       <div className="h-4 w-32 rounded-full bg-slate-200" />
       <div className="mt-4 h-9 w-full max-w-xl rounded-2xl bg-slate-200" />
       <div className="mt-3 h-4 w-full max-w-2xl rounded-full bg-slate-200" />

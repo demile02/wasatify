@@ -2,8 +2,11 @@ import { ArrowRight, BookOpen, GraduationCap } from 'lucide-react';
 import Link from 'next/link';
 import { AuthShell } from '@/components/auth/auth-shell';
 import { SectionCard } from '@/components/shared/section-card';
+import { redirectAuthenticatedUser } from '@/lib/auth/redirects';
 
-export default function RegisterPage() {
+export default async function RegisterPage() {
+  await redirectAuthenticatedUser();
+
   return (
     <AuthShell
       title="Pilih Peran Anda"

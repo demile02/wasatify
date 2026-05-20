@@ -13,6 +13,7 @@ export type TeacherClassInfo = {
   name: string;
   gradeLevel: string | null;
   academicYear?: string | null;
+  classCode?: string | null;
   description: string | null;
 };
 
@@ -48,6 +49,12 @@ export type TeacherClassActivity = {
   description: string;
   date: string;
   type: 'quiz' | 'reflection' | 'module';
+  studentName?: string | null;
+  studentEmail?: string | null;
+  moduleTitle?: string | null;
+  quizTitle?: string | null;
+  reflectionText?: string | null;
+  actionText?: string | null;
 };
 
 export type TeacherReportStudentRow = {
@@ -103,6 +110,7 @@ type ClassRow = {
   description: string | null;
   grade_level: string | null;
   academic_year?: string | null;
+  class_code?: string | null;
   teacher_id?: string | null;
 };
 
@@ -154,6 +162,8 @@ type ReflectionRow = {
   id: string;
   student_id: string;
   module_id: string;
+  reflection_text: string | null;
+  action_plan: string | null;
   created_at: string;
 };
 
@@ -200,7 +210,7 @@ async function loadTeacherAnalyticsSource(profile: Profile, classId?: string) {
   const supabase = await createClient();
   let classQuery = supabase
     .from('classes')
-    .select('id, name, description, grade_level, academic_year, teacher_id')
+    .select('id, name, description, grade_level, academic_year, class_code, teacher_id')
     .order('name', { ascending: true });
 
   if (classId) {
@@ -282,7 +292,7 @@ async function loadTeacherAnalyticsSource(profile: Profile, classId?: string) {
     studentIds.length && moduleIds.length
       ? supabase
           .from('reflections')
-          .select('id, student_id, module_id, created_at')
+          .select('id, student_id, module_id, reflection_text, action_plan, created_at')
           .in('student_id', studentIds)
           .in('module_id', moduleIds)
       : Promise.resolve({ data: [], error: null }),
@@ -313,7 +323,14 @@ function buildClassDetailFromSource(
     metrics: calculateMetrics(source.students, source.modules, source.progressRows, source.quizAttempts, source.reflections),
     students: buildStudentProgress(source.students, source.modules, source.progressRows, source.quizAttempts, source.reflections),
     modules: buildClassModules(source.modules, source.lessons, source.progressRows, source.students),
-    activities: buildClassActivities(source.students, source.modules, source.progressRows, source.quizAttempts, source.reflections),
+    activities: buildClassActivities(
+      source.students,
+      source.modules,
+      source.quizzes,
+      source.progressRows,
+      source.quizAttempts,
+      source.reflections,
+    ),
     isDemo: false,
   };
 }
@@ -485,41 +502,72 @@ function buildClassModules(
 function buildClassActivities(
   students: StudentRow[],
   modules: ModuleRow[],
+  quizzes: QuizRow[],
   progressRows: ModuleProgressRow[],
   quizAttempts: QuizAttemptRow[],
   reflections: ReflectionRow[],
 ): TeacherClassActivity[] {
   const studentById = new Map(students.map((student) => [student.id, student]));
   const moduleById = new Map(modules.map((moduleItem) => [moduleItem.id, moduleItem]));
+  const quizById = new Map(quizzes.map((quiz) => [quiz.id, quiz]));
   const activities: TeacherClassActivity[] = [
-    ...quizAttempts.map((attempt) => ({
-      id: `quiz-${attempt.id}`,
-      title: `${studentById.get(attempt.student_id)?.full_name ?? 'Siswa'} menyelesaikan kuis`,
-      description: typeof attempt.score === 'number' ? `Skor ${Math.round(Number(attempt.score))}` : 'Kuis tersimpan',
-      date: attempt.submitted_at ?? attempt.created_at ?? new Date().toISOString(),
-      type: 'quiz' as const,
-    })),
-    ...reflections.map((reflection) => ({
-      id: `reflection-${reflection.id}`,
-      title: `${studentById.get(reflection.student_id)?.full_name ?? 'Siswa'} mengumpulkan refleksi`,
-      description: moduleById.get(reflection.module_id)?.title ?? 'Modul pembelajaran',
-      date: reflection.created_at,
-      type: 'reflection' as const,
-    })),
+    ...quizAttempts.map((attempt) => {
+      const student = studentById.get(attempt.student_id);
+      const quiz = quizById.get(attempt.quiz_id);
+      const moduleItem = quiz ? moduleById.get(quiz.module_id) : null;
+      const scoreText = typeof attempt.score === 'number' ? `Skor ${Math.round(Number(attempt.score))}` : 'Kuis tersimpan';
+      const quizTitle = quiz?.title ?? 'Kuis';
+      const moduleTitle = moduleItem?.title ?? null;
+
+      return {
+        id: `quiz-${attempt.id}`,
+        title: `${student?.full_name ?? 'Siswa'} menyelesaikan kuis`,
+        description: moduleTitle ? `${quizTitle} - ${moduleTitle} - ${scoreText}` : `${quizTitle} - ${scoreText}`,
+        date: attempt.submitted_at ?? attempt.created_at ?? new Date().toISOString(),
+        type: 'quiz' as const,
+        studentName: student?.full_name ?? null,
+        studentEmail: student?.email ?? null,
+        moduleTitle,
+        quizTitle,
+      };
+    }),
+    ...reflections.map((reflection) => {
+      const student = studentById.get(reflection.student_id);
+      const moduleTitle = moduleById.get(reflection.module_id)?.title ?? 'Modul pembelajaran';
+
+      return {
+        id: `reflection-${reflection.id}`,
+        title: `${student?.full_name ?? 'Siswa'} mengumpulkan refleksi`,
+        description: moduleTitle,
+        date: reflection.created_at,
+        type: 'reflection' as const,
+        studentName: student?.full_name ?? null,
+        studentEmail: student?.email ?? null,
+        moduleTitle,
+        reflectionText: reflection.reflection_text,
+        actionText: reflection.action_plan,
+      };
+    }),
     ...progressRows
       .filter((progress) => progress.status === 'completed' || progress.completed_at || progress.progress_percent === 100)
-      .map((progress) => ({
-        id: `module-${progress.student_id}-${progress.module_id}`,
-        title: `${studentById.get(progress.student_id)?.full_name ?? 'Siswa'} menyelesaikan modul`,
-        description: moduleById.get(progress.module_id)?.title ?? 'Modul pembelajaran',
-        date: progress.completed_at ?? progress.updated_at ?? progress.created_at ?? new Date().toISOString(),
-        type: 'module' as const,
-      })),
+      .map((progress) => {
+        const student = studentById.get(progress.student_id);
+        const moduleTitle = moduleById.get(progress.module_id)?.title ?? 'Modul pembelajaran';
+
+        return {
+          id: `module-${progress.student_id}-${progress.module_id}`,
+          title: `${student?.full_name ?? 'Siswa'} menyelesaikan modul`,
+          description: moduleTitle,
+          date: progress.completed_at ?? progress.updated_at ?? progress.created_at ?? new Date().toISOString(),
+          type: 'module' as const,
+          studentName: student?.full_name ?? null,
+          studentEmail: student?.email ?? null,
+          moduleTitle,
+        };
+      }),
   ];
 
-  return activities
-    .sort((first, second) => new Date(second.date).getTime() - new Date(first.date).getTime())
-    .slice(0, 12);
+  return activities.sort((first, second) => new Date(second.date).getTime() - new Date(first.date).getTime());
 }
 
 function buildCompletionTrend(progressRows: ModuleProgressRow[]) {
@@ -612,6 +660,7 @@ function buildDemoClassDetail(classId: string): TeacherClassDetailData {
       id: classId,
       name: 'Kelas VIII - Akhlak & Adab',
       gradeLevel: 'VIII',
+      classCode: 'KLS-WSTFY8',
       description: 'Demo class WASATIFY',
     },
     metrics: {
@@ -764,6 +813,7 @@ function mapClassInfo(classRow: ClassRow): TeacherClassInfo {
     description: classRow.description,
     gradeLevel: classRow.grade_level,
     academicYear: classRow.academic_year ?? null,
+    classCode: classRow.class_code ?? null,
   };
 }
 

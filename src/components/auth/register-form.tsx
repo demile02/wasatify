@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Eye, EyeOff, Lock, UserRound } from 'lucide-react';
+import { Eye, EyeOff, KeyRound, Lock, UserRound } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
@@ -14,21 +14,19 @@ import { EmailInputWithSuggestions } from '@/components/auth/email-input-with-su
 import { SocialAuthButtons } from '@/components/auth/social-auth-buttons';
 import { Button } from '@/components/ui/button';
 import { getRoleDashboardPath } from '@/lib/auth/roles';
-import type { PublicRegistrationClass } from '@/lib/auth/classes';
 import { createClient } from '@/lib/supabase/client';
 import type { AppRole } from '@/lib/types';
 
 type RegisterFormProps = {
   role: Extract<AppRole, 'student' | 'teacher'>;
-  initialClasses?: PublicRegistrationClass[];
 };
 
 const registerSchema = z
   .object({
     fullName: z.string().trim().min(3, 'Nama lengkap minimal 3 karakter.'),
     email: z.string().trim().email('Email tidak valid.'),
-    classId: z.string().trim().optional(),
-    className: z.string().trim().optional(),
+    classCode: z.string().trim().optional(),
+    teacherCode: z.string().trim().optional(),
     subject: z.string().trim().optional(),
     password: z.string().min(6, 'Password minimal 6 karakter.'),
     confirmPassword: z.string().min(1, 'Konfirmasi password wajib diisi.'),
@@ -36,17 +34,31 @@ const registerSchema = z
   .refine((values) => values.password === values.confirmPassword, {
     message: 'Konfirmasi password belum sama.',
     path: ['confirmPassword'],
+  })
+  .superRefine((values, context) => {
+    if (values.teacherCode !== undefined && values.teacherCode.trim().length > 0 && values.teacherCode.trim().length < 4) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Kode guru terlalu pendek.',
+        path: ['teacherCode'],
+      });
+    }
+
+    if (values.classCode !== undefined && values.classCode.trim().length > 0 && values.classCode.trim().length < 4) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Kode kelas terlalu pendek.',
+        path: ['classCode'],
+      });
+    }
   });
 
 type RegisterFormValues = z.infer<typeof registerSchema>;
 
-export function RegisterForm({ role, initialClasses = [] }: RegisterFormProps) {
+export function RegisterForm({ role }: RegisterFormProps) {
   const router = useRouter();
   const isTeacher = role === 'teacher';
   const [showPassword, setShowPassword] = useState(false);
-  const [classes, setClasses] = useState<PublicRegistrationClass[]>(initialClasses);
-  const [loadingClasses, setLoadingClasses] = useState(!isTeacher && !initialClasses.length);
-  const [classesError, setClassesError] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const {
@@ -60,8 +72,8 @@ export function RegisterForm({ role, initialClasses = [] }: RegisterFormProps) {
     defaultValues: {
       fullName: '',
       email: '',
-      classId: '',
-      className: '',
+      classCode: '',
+      teacherCode: '',
       subject: '',
       password: '',
       confirmPassword: '',
@@ -69,56 +81,6 @@ export function RegisterForm({ role, initialClasses = [] }: RegisterFormProps) {
   });
   const emailRegister = register('email');
   const emailValue = watch('email');
-
-  useEffect(() => {
-    if (isTeacher) return;
-
-    let mounted = true;
-
-    async function loadClasses() {
-      if (initialClasses.length) {
-        setLoadingClasses(false);
-        return;
-      }
-
-      try {
-        const supabase = createClient();
-        const { data, error: classError } = await supabase
-          .from('classes')
-          .select('id, name, grade_level, academic_year, teacher_id, join_code')
-          .order('name', { ascending: true });
-
-        if (!classError) {
-          if (mounted) {
-            setClasses((data ?? []) as PublicRegistrationClass[]);
-            setClassesError('');
-          }
-          return;
-        }
-
-        const { data: rpcData, error: rpcError } = await supabase.rpc('get_public_classes_for_registration');
-        if (rpcError) throw rpcError;
-
-        if (mounted) {
-          setClasses((rpcData ?? []) as PublicRegistrationClass[]);
-          setClassesError('');
-        }
-      } catch (loadError) {
-        if (mounted) setClasses([]);
-        if (mounted) {
-          setClassesError(loadError instanceof Error ? loadError.message : 'Kelas belum bisa dimuat.');
-        }
-      } finally {
-        if (mounted) setLoadingClasses(false);
-      }
-    }
-
-    loadClasses();
-
-    return () => {
-      mounted = false;
-    };
-  }, [initialClasses.length, isTeacher]);
 
   async function onSubmit(values: RegisterFormValues) {
     setError('');
@@ -128,16 +90,40 @@ export function RegisterForm({ role, initialClasses = [] }: RegisterFormProps) {
       const supabase = createClient();
       const fullName = values.fullName.trim();
       const email = values.email.trim();
-      const classId = values.classId?.trim() || null;
-      const selectedClass = classes.find((classItem) => classItem.id === classId);
-      const className = values.className?.trim() || null;
+      const teacherCode = normalizeCode(values.teacherCode);
+      const classCode = normalizeCode(values.classCode);
       const subject = values.subject?.trim() || null;
+
+      if (isTeacher && !teacherCode) {
+        throw new Error('Kode guru wajib diisi.');
+      }
+
+      if (!isTeacher && !classCode) {
+        throw new Error('Kode kelas wajib diisi.');
+      }
+
+      if (isTeacher) {
+        const { data: isValid, error: validationError } = await supabase.rpc('validate_teacher_invite_code', {
+          input_code: teacherCode,
+        });
+
+        if (validationError) throw new Error('Kode guru belum bisa divalidasi. Pastikan SQL terbaru sudah dijalankan.');
+        if (!isValid) throw new Error('Kode guru tidak valid atau sudah digunakan.');
+      } else {
+        const { data: isValid, error: validationError } = await supabase.rpc('validate_class_code', {
+          input_class_code: classCode,
+        });
+
+        if (validationError) throw new Error('Kode kelas belum bisa divalidasi. Pastikan SQL terbaru sudah dijalankan.');
+        if (!isValid) throw new Error('Kode kelas tidak valid.');
+      }
+
       const metadata = {
         role,
         full_name: fullName,
         name: fullName,
-        class_id: isTeacher ? null : classId,
-        class_name: isTeacher ? null : selectedClass?.name ?? className,
+        class_code: isTeacher ? null : classCode,
+        teacher_invite_code: isTeacher ? teacherCode : null,
         subject: isTeacher ? subject : null,
       };
 
@@ -153,23 +139,8 @@ export function RegisterForm({ role, initialClasses = [] }: RegisterFormProps) {
       if (signUpError) throw signUpError;
 
       if (data.session?.user) {
-        const { error: profileError } = await supabase.from('profiles').upsert(
-          {
-            id: data.session.user.id,
-            role,
-            full_name: fullName,
-            email,
-            class_id: isTeacher ? null : classId,
-            class_name: isTeacher ? null : selectedClass?.name ?? className,
-            subject: isTeacher ? subject : null,
-          },
-          { onConflict: 'id' },
-        );
-
-        if (profileError) throw profileError;
-
         toast.success('Akun berhasil dibuat.');
-        router.push(getRoleDashboardPath(role));
+        router.replace(getRoleDashboardPath(role));
         router.refresh();
         return;
       }
@@ -178,7 +149,7 @@ export function RegisterForm({ role, initialClasses = [] }: RegisterFormProps) {
       setSuccess(message);
       toast.success(message);
     } catch (nextError) {
-      const message = getRegisterErrorMessage(nextError);
+      const message = getRegisterErrorMessage(nextError, role);
       setError(message);
       toast.error(message);
     }
@@ -220,45 +191,39 @@ export function RegisterForm({ role, initialClasses = [] }: RegisterFormProps) {
         />
 
         {isTeacher ? (
-          <AuthTextarea
-            label="Mata pelajaran / tugas"
-            placeholder="Contoh: Akhlak, PAI, wali kelas, pembina rohis"
-            error={errors.subject?.message}
-            {...register('subject')}
-          />
+          <>
+            <AuthInput
+              label="Kode Guru"
+              placeholder="Masukkan kode unik dari admin"
+              autoComplete="one-time-code"
+              leftIcon={<KeyRound className="h-4 w-4" />}
+              error={errors.teacherCode?.message}
+              {...register('teacherCode')}
+            />
+            <p className="-mt-3 text-xs leading-5 text-muted-foreground">
+              Kode guru hanya bisa digunakan sekali. Hubungi admin sekolah jika belum memiliki kode.
+            </p>
+            <AuthTextarea
+              label="Mata pelajaran / tugas"
+              placeholder="Contoh: Akhlak, PAI, wali kelas, pembina rohis"
+              error={errors.subject?.message}
+              {...register('subject')}
+            />
+          </>
         ) : (
-          <div className="space-y-2">
-            <label className="block text-sm font-bold text-ink">Kelas</label>
-            <select
-              className="h-12 w-full rounded-xl border border-border bg-white px-4 text-sm font-semibold text-foreground outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
-              disabled={loadingClasses || !classes.length}
-              {...register('classId')}
-            >
-              <option value="">
-                {loadingClasses
-                  ? 'Memuat kelas...'
-                  : classes.length
-                    ? 'Pilih kelas'
-                    : 'Belum ada kelas tersedia'}
-              </option>
-              {classes.map((classItem) => (
-                <option key={classItem.id} value={classItem.id}>
-                  {[classItem.name, classItem.grade_level, classItem.academic_year].filter(Boolean).join(' - ')}
-                </option>
-              ))}
-            </select>
-            {classesError && (
-              <p className="text-xs leading-5 text-red-600">
-                Kelas belum bisa dimuat: {classesError}. Pastikan `schema.sql` dan `rls.sql` terbaru sudah dijalankan.
-              </p>
-            )}
-            {!classes.length && !loadingClasses && (
-              <p className="text-xs leading-5 text-muted-foreground">
-                Belum ada kelas tersedia. Hubungi guru, atau lanjut daftar dan minta guru menghubungkan akunmu nanti.
-              </p>
-            )}
-            {errors.classId?.message && <p className="text-xs font-semibold text-red-600">{errors.classId.message}</p>}
-          </div>
+          <>
+            <AuthInput
+              label="Kode Kelas"
+              placeholder="Contoh: KLS-AB12CD"
+              autoComplete="one-time-code"
+              leftIcon={<KeyRound className="h-4 w-4" />}
+              error={errors.classCode?.message}
+              {...register('classCode')}
+            />
+            <p className="-mt-3 text-xs leading-5 text-muted-foreground">
+              Masukkan kode kelas dari guru. Akun siswa akan otomatis terhubung ke kelas tersebut.
+            </p>
+          </>
         )}
 
         <div className="relative">
@@ -315,10 +280,19 @@ export function RegisterForm({ role, initialClasses = [] }: RegisterFormProps) {
   );
 }
 
-function getRegisterErrorMessage(error: unknown) {
+function normalizeCode(value: string | null | undefined) {
+  return (value ?? '').trim().toUpperCase();
+}
+
+function getRegisterErrorMessage(error: unknown, role: Extract<AppRole, 'student' | 'teacher'>) {
   if (error instanceof Error) {
     if (error.message.includes('already registered')) {
       return 'Email ini sudah terdaftar. Silakan login.';
+    }
+    if (error.message.includes('Database error saving new user')) {
+      return role === 'teacher'
+        ? 'Kode guru tidak valid atau sudah digunakan.'
+        : 'Kode kelas tidak valid.';
     }
     return error.message;
   }

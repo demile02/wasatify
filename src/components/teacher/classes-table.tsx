@@ -30,7 +30,8 @@ export function ClassesTable({ classes }: ClassesTableProps) {
       (classItem) =>
         classItem.name.toLowerCase().includes(normalizedQuery) ||
         (classItem.gradeLevel?.toLowerCase().includes(normalizedQuery) ?? false) ||
-        (classItem.academicYear?.toLowerCase().includes(normalizedQuery) ?? false),
+        (classItem.academicYear?.toLowerCase().includes(normalizedQuery) ?? false) ||
+        classItem.classCode.toLowerCase().includes(normalizedQuery),
     );
   }, [classes, query]);
 
@@ -83,7 +84,7 @@ export function ClassesTable({ classes }: ClassesTableProps) {
                   <p className="mt-1 text-sm text-muted-foreground">
                     {[classItem.gradeLevel, classItem.academicYear].filter(Boolean).join(' - ') || 'Tanpa tingkat'}
                   </p>
-                  <p className="mt-2 text-xs font-semibold text-primary">Kode: {classItem.joinCode}</p>
+                  <p className="mt-2 text-xs font-semibold text-primary">Kode Kelas: {classItem.classCode}</p>
                 </div>
                 <div className="flex gap-2">
                   <ClassFormDialog classItem={classItem} />

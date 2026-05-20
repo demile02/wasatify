@@ -16,6 +16,9 @@ type ModuleCardProps = {
   lessonsCount?: number;
   duration?: string;
   progress?: number;
+  statusLabel?: string;
+  metaText?: string;
+  actionLabel?: string;
   className?: string;
 };
 
@@ -28,6 +31,9 @@ export function ModuleCard({
   lessonsCount,
   duration,
   progress = 0,
+  statusLabel,
+  metaText,
+  actionLabel,
   className,
 }: ModuleCardProps) {
   const locked = status === 'locked';
@@ -46,7 +52,7 @@ export function ModuleCard({
         <Image src={imageSrc} alt="" fill sizes="(min-width: 1024px) 33vw, 100vw" className="object-cover" />
         <div className="absolute inset-0 bg-gradient-to-t from-primary/55 to-transparent" />
         <div className="absolute left-4 top-4">
-          <StatusBadge status={status} />
+          <StatusBadge status={status} label={statusLabel} />
         </div>
         {locked && (
           <div className="absolute inset-0 grid place-items-center bg-white/40 backdrop-blur-[1px]">
@@ -74,6 +80,16 @@ export function ModuleCard({
           )}
         </div>
         <ProgressBar value={locked ? 0 : progress} showValue className="mt-5" />
+        {(metaText || actionLabel) && (
+          <div className="mt-4 flex flex-col gap-2 border-t border-border pt-4 text-xs font-bold sm:flex-row sm:items-center sm:justify-between">
+            {metaText && <span className="text-muted-foreground">{metaText}</span>}
+            {actionLabel && (
+              <span className={cn(locked ? 'text-muted-foreground' : 'text-primary')}>
+                {actionLabel}
+              </span>
+            )}
+          </div>
+        )}
       </div>
     </SectionCard>
   );

@@ -6,6 +6,7 @@ import { EmptyState } from '@/components/shared/empty-state';
 import { PageHeader } from '@/components/shared/page-header';
 import { ProgressBar } from '@/components/shared/progress-bar';
 import { SectionCard } from '@/components/shared/section-card';
+import { QuizRetakeButton } from '@/components/student/quiz-retake-button';
 import { Button } from '@/components/ui/button';
 import { requireStudent } from '@/lib/auth/server';
 import { formatDateTime } from '@/lib/date';
@@ -101,6 +102,12 @@ export default async function StudentQuizzesPage() {
                     tone="blocked"
                     action={
                       <div className="flex flex-col gap-2 sm:flex-row">
+                        <QuizRetakeButton
+                          moduleId={quiz.moduleId}
+                          allowRetake={quiz.allowRetake}
+                          attemptsUsed={quiz.attemptsUsed}
+                          maxAttempts={quiz.maxAttempts}
+                        />
                         {quiz.latestAttemptId && (
                           <Button asChild>
                             <Link href={`/student/modules/${quiz.moduleId}/quiz/result?attemptId=${quiz.latestAttemptId}`}>
@@ -122,7 +129,7 @@ export default async function StudentQuizzesPage() {
 
             {quizData.history.length ? (
               <div className="overflow-hidden rounded-2xl border border-border bg-white shadow-card">
-                <div className="hidden grid-cols-[1.2fr_1fr_0.55fr_0.55fr_0.75fr_0.7fr] gap-4 border-b border-border bg-muted/40 px-4 py-3 text-xs font-extrabold uppercase tracking-wide text-muted-foreground lg:grid">
+                <div className="hidden grid-cols-[1.2fr_1fr_0.55fr_0.55fr_0.75fr_0.9fr] gap-4 border-b border-border bg-muted/40 px-4 py-3 text-xs font-extrabold uppercase tracking-wide text-muted-foreground lg:grid">
                   <span>Kuis</span>
                   <span>Modul</span>
                   <span>Attempt</span>
@@ -266,7 +273,7 @@ function MiniMetric({ label, value }: { label: string; value: string }) {
 
 function HistoryRow({ attempt }: { attempt: StudentQuizHistoryItem }) {
   return (
-    <div className="grid gap-3 px-4 py-4 lg:grid-cols-[1.2fr_1fr_0.55fr_0.55fr_0.75fr_0.7fr] lg:items-center">
+    <div className="grid gap-3 px-4 py-4 lg:grid-cols-[1.2fr_1fr_0.55fr_0.55fr_0.75fr_0.9fr] lg:items-center">
       <div className="min-w-0">
         <p className="line-clamp-1 font-bold text-ink">{attempt.quizTitle}</p>
         <p className="mt-1 text-xs font-semibold text-muted-foreground lg:hidden">{attempt.moduleTitle}</p>
@@ -281,9 +288,22 @@ function HistoryRow({ attempt }: { attempt: StudentQuizHistoryItem }) {
         <span className="text-xs text-muted-foreground">best {attempt.bestScore}</span>
       </div>
       <p className="text-sm text-muted-foreground">{formatDateTime(attempt.submittedAt)}</p>
-      <Button asChild variant="outline" size="sm" className="w-fit">
-        <Link href={`/student/modules/${attempt.moduleId}/quiz/result?attemptId=${attempt.id}`}>Lihat Hasil</Link>
-      </Button>
+      <div className="flex flex-wrap gap-2">
+        <Button asChild variant="outline" size="sm" className="w-fit">
+          <Link href={`/student/modules/${attempt.moduleId}/quiz/result?attemptId=${attempt.id}`}>Lihat Hasil</Link>
+        </Button>
+        <QuizRetakeButton
+          moduleId={attempt.moduleId}
+          allowRetake={attempt.allowRetake}
+          attemptsUsed={attempt.attemptsUsed}
+          maxAttempts={attempt.maxAttempts}
+        />
+        {attempt.hasPassed && !attempt.hasReflection && (
+          <Button asChild variant="ghost" size="sm" className="w-fit text-primary">
+            <Link href={`/student/reflection?moduleId=${attempt.moduleId}`}>Lanjut Refleksi</Link>
+          </Button>
+        )}
+      </div>
     </div>
   );
 }

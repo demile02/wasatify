@@ -74,6 +74,8 @@ Kolom penting yang harus ada:
 
 - `quiz_attempts.total_points`, `quiz_attempts.earned_points`, `quiz_attempts.passed`
 - `classes.academic_year`
+- `classes.class_code`
+- `teacher_invite_codes.code`
 - `profiles.last_active_at`
 - `reflections.teacher_note`, `reflections.reviewed_at`, `reflections.reviewed_by`
 - `announcements.status`
@@ -106,6 +108,30 @@ http://localhost:3000/**
 ```
 
 Register siswa membuat profile role `student`. Register guru membuat profile role `teacher`. Middleware membatasi `/student/*` untuk student dan `/teacher/*` untuk teacher/admin.
+
+### Registration Access Control
+
+Pendaftaran sekarang memakai kode akses:
+
+- Calon guru wajib memasukkan kode dari tabel `teacher_invite_codes`.
+- Kode guru hanya bisa digunakan sekali. Setelah akun guru dibuat, `used_by` dan `used_at` akan terisi otomatis.
+- Calon siswa wajib memasukkan `classes.class_code`; siswa otomatis masuk ke kelas tersebut.
+- Guru dapat melihat kode kelas di halaman `/teacher/classes` dan detail kelas.
+
+Contoh membuat kode guru manual di Supabase SQL Editor:
+
+```sql
+insert into public.teacher_invite_codes (code, expires_at, is_active)
+values ('GURU-NAMA-2026', null, true);
+```
+
+Contoh melihat kode kelas:
+
+```sql
+select name, class_code
+from public.classes
+order by created_at desc;
+```
 
 ## Run Local
 

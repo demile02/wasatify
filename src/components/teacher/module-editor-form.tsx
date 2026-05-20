@@ -14,7 +14,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { ProgressBar } from '@/components/shared/progress-bar';
 import { SectionCard } from '@/components/shared/section-card';
@@ -81,7 +81,9 @@ const PPTX_FAILED_MESSAGE = 'Konversi PPTX membutuhkan worker/server renderer. G
 
 export function ModuleEditorForm({ mode, initialData, classes }: ModuleEditorFormProps) {
   const router = useRouter();
-  const [activeStep, setActiveStep] = useState<StepId>('info');
+  const searchParams = useSearchParams();
+  const initialStep = searchParams?.get('step') === 'quiz' ? 'quiz' : 'info';
+  const [activeStep, setActiveStep] = useState<StepId>(initialStep);
   const [form, setForm] = useState<FormState>(() => toFormState(initialData));
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [coverPreview, setCoverPreview] = useState(initialData.coverImagePath);
@@ -599,8 +601,8 @@ function InfoStep({
               className={inputClass}
             >
               <option value="draft">Draft</option>
-              <option value="published">Published</option>
-              <option value="archived">Archived</option>
+              <option value="published">Dipublikasikan</option>
+              <option value="archived">Diarsipkan</option>
             </select>
           </Field>
           <Field label="Tag/Topik" className="sm:col-span-2">
@@ -902,8 +904,8 @@ function QuizStep({
         <Field label="Quiz Status">
           <select value={quiz.status} onChange={(event) => updateQuiz({ status: event.target.value as FormState['quiz']['status'], isPublished: event.target.value === 'published' })} className={inputClass}>
             <option value="draft">Draft</option>
-            <option value="published">Published</option>
-            <option value="archived">Archived</option>
+            <option value="published">Dipublikasikan</option>
+            <option value="archived">Diarsipkan</option>
           </select>
         </Field>
         <Field label="Deskripsi Kuis" className="sm:col-span-2">

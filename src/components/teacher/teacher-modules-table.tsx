@@ -37,9 +37,9 @@ type ConfirmAction = 'archive' | 'delete';
 
 const statusFilters: { value: StatusFilter; label: string }[] = [
   { value: 'all', label: 'Semua' },
-  { value: 'published', label: 'Published' },
+  { value: 'published', label: 'Dipublikasikan' },
   { value: 'draft', label: 'Draft' },
-  { value: 'archived', label: 'Archived' },
+  { value: 'archived', label: 'Diarsipkan' },
 ];
 
 export function TeacherModulesTable({ modules }: TeacherModulesTableProps) {
@@ -254,7 +254,7 @@ export function TeacherModulesTable({ modules }: TeacherModulesTableProps) {
                   </td>
                   <td className="px-5 py-4">
                     <div className="flex justify-end gap-2">
-                      <IconAction href={`/teacher/modules/${moduleItem.id}/edit?preview=1`} label="Lihat">
+                      <IconAction href={`/teacher/modules/${moduleItem.id}/preview`} label="Preview">
                         <Eye className="h-4 w-4" />
                       </IconAction>
                       <IconAction href={`/teacher/modules/${moduleItem.id}/edit`} label="Edit">
@@ -414,7 +414,7 @@ function ModuleStatusBadge({ status }: { status: TeacherModuleStatus }) {
       className: 'border-gold/20 bg-cream text-gold',
     },
     archived: {
-      label: 'Nonaktif',
+      label: 'Diarsipkan',
       className: 'border-slate-200 bg-slate-100 text-slate-600',
     },
   }[status];

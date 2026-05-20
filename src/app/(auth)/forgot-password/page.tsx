@@ -1,7 +1,10 @@
 import { AuthShell } from '@/components/auth/auth-shell';
 import { ForgotPasswordForm } from '@/components/auth/forgot-password-form';
+import { redirectAuthenticatedUser } from '@/lib/auth/redirects';
 
-export default function ForgotPasswordPage() {
+export default async function ForgotPasswordPage() {
+  await redirectAuthenticatedUser();
+
   return (
     <AuthShell
       title="Pulihkan Akses Akun"

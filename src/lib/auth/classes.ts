@@ -7,6 +7,7 @@ export type PublicRegistrationClass = {
   academic_year: string | null;
   teacher_id: string | null;
   join_code: string | null;
+  class_code: string | null;
 };
 
 export async function getPublicClassesForRegistration(): Promise<PublicRegistrationClass[]> {
@@ -16,7 +17,7 @@ export async function getPublicClassesForRegistration(): Promise<PublicRegistrat
     const supabase = await createClient();
     const { data, error } = await supabase
       .from('classes')
-      .select('id, name, grade_level, academic_year, teacher_id, join_code')
+      .select('id, name, grade_level, academic_year, teacher_id, join_code, class_code')
       .order('name', { ascending: true });
 
     if (!error) return (data ?? []) as PublicRegistrationClass[];

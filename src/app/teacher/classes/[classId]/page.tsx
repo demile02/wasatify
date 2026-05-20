@@ -38,8 +38,12 @@ export default async function TeacherClassDetailPage({ params }: TeacherClassDet
         eyebrow="Detail Kelas"
         title={data.classInfo.name}
         description={
-          data.classInfo.description ??
-          [data.classInfo.gradeLevel, data.classInfo.academicYear].filter(Boolean).join(' - ') ??
+          [
+            data.classInfo.description ?? [data.classInfo.gradeLevel, data.classInfo.academicYear].filter(Boolean).join(' - '),
+            data.classInfo.classCode ? `Kode Kelas: ${data.classInfo.classCode}` : null,
+          ]
+            .filter(Boolean)
+            .join(' - ') ||
           'Pantau progress, kuis, refleksi, dan aktivitas siswa.'
         }
         actions={

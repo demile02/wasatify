@@ -60,13 +60,18 @@ set role = excluded.role,
     bio = excluded.bio,
     updated_at = now();
 
+insert into public.teacher_invite_codes (code, created_by, expires_at, is_active)
+values ('GURU-DEMO-2026', null, null, true)
+on conflict (code) do nothing;
+
 insert into public.classes (
   id,
   teacher_id,
   name,
   description,
   grade_level,
-  join_code
+  join_code,
+  class_code
 )
 values (
   '00000000-0000-0000-0000-000000000201',
@@ -74,7 +79,8 @@ values (
   'Kelas VIII - Akhlak & Adab',
   'Kelas demo untuk pembelajaran Islam Wasathiyah.',
   'VIII SMP',
-  'WSTFY8A'
+  'WSTFY8A',
+  'KLS-WSTFY8'
 )
 on conflict (id) do update
 set teacher_id = excluded.teacher_id,
@@ -82,6 +88,7 @@ set teacher_id = excluded.teacher_id,
     description = excluded.description,
     grade_level = excluded.grade_level,
     join_code = excluded.join_code,
+    class_code = excluded.class_code,
     updated_at = now();
 
 with module_seed (
