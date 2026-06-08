@@ -45,21 +45,24 @@ export default async function StudentReflectionPage({ searchParams }: StudentRef
       />
 
       {reflectionData.locked || !reflectionData.selectedModule ? (
-        <EmptyState
-          className="mt-8"
-          icon={Lock}
-          title={reflectionData.selectedModule ? 'Modul masih terkunci' : 'Modul tidak ditemukan'}
-          description={
-            reflectionData.selectedModule
-              ? 'Selesaikan modul sebelumnya sebelum menulis refleksi untuk modul ini.'
-              : 'Refleksi belum bisa dibuat karena modul tidak tersedia untuk akunmu.'
-          }
-          action={
-            <Button asChild>
-              <Link href="/student/reflection">Kembali ke Refleksi</Link>
-            </Button>
-          }
-        />
+        <div className="mt-8 space-y-6">
+          <ReflectionModuleJumpSelect modules={reflectionData.modules} selectedModuleId={reflectionData.selectedModule?.id} />
+          <EmptyState
+            icon={Lock}
+            title={reflectionData.selectedModule ? 'Refleksi belum terbuka' : 'Modul tidak ditemukan'}
+            description={reflectionData.lockedReason ?? 'Selesaikan syarat modul terlebih dahulu.'}
+            action={
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <Button asChild>
+                  <Link href={reflectionData.lockedHref}>{reflectionData.lockedCtaLabel}</Link>
+                </Button>
+                <Button asChild variant="outline">
+                  <Link href="/student/reflection">Kembali ke Refleksi</Link>
+                </Button>
+              </div>
+            }
+          />
+        </div>
       ) : (
         <div className="mt-8 grid gap-6 xl:grid-cols-[1fr_0.42fr]">
           <ReflectionForm

@@ -473,6 +473,24 @@ create table if not exists public.notification_reads (
   unique (user_id, notification_key)
 );
 
+create table if not exists public.messages (
+  id uuid primary key default gen_random_uuid(),
+  sender_id uuid references public.profiles(id) on delete set null,
+  recipient_id uuid references public.profiles(id) on delete cascade,
+  target_class_id uuid references public.classes(id) on delete cascade,
+  title text not null,
+  body text not null,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.message_reads (
+  id uuid primary key default gen_random_uuid(),
+  message_id uuid not null references public.messages(id) on delete cascade,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  read_at timestamptz not null default now(),
+  unique (message_id, user_id)
+);
+
 create or replace function public.set_updated_at()
 returns trigger
 language plpgsql
@@ -705,3 +723,11 @@ create index if not exists announcements_class_id_idx on public.announcements(cl
 
 create index if not exists notification_reads_user_id_idx on public.notification_reads(user_id);
 create index if not exists notification_reads_notification_key_idx on public.notification_reads(notification_key);
+
+create index if not exists messages_sender_id_idx on public.messages(sender_id);
+create index if not exists messages_recipient_id_idx on public.messages(recipient_id);
+create index if not exists messages_target_class_id_idx on public.messages(target_class_id);
+create index if not exists messages_created_at_idx on public.messages(created_at);
+
+create index if not exists message_reads_message_id_idx on public.message_reads(message_id);
+create index if not exists message_reads_user_id_idx on public.message_reads(user_id);

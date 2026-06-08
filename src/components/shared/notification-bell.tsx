@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState, useTransition } from 'react';
-import { Bell, CheckCheck, ClipboardCheck, GraduationCap, Megaphone, MessageSquareText } from 'lucide-react';
+import { Bell, CheckCheck, ClipboardCheck, GraduationCap, Mail, Megaphone, MessageSquareText } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { EmptyState } from '@/components/shared/empty-state';
 import { Button } from '@/components/ui/button';
@@ -160,5 +160,6 @@ function NotificationIcon({ kind }: { kind: NotificationItem['kind'] }) {
   if (kind === 'reflection') return <MessageSquareText className="h-4 w-4" />;
   if (kind === 'quiz_attempt') return <ClipboardCheck className="h-4 w-4" />;
   if (kind === 'module_progress') return <GraduationCap className="h-4 w-4" />;
+  if (kind === 'message') return <Mail className="h-4 w-4" />;
   return <Megaphone className="h-4 w-4" />;
 }

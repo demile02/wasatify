@@ -8,7 +8,7 @@ export type NotificationItem = {
   body: string;
   createdAt: string;
   href: string;
-  kind: 'announcement' | 'reflection' | 'quiz_attempt' | 'module_progress';
+  kind: 'announcement' | 'reflection' | 'quiz_attempt' | 'module_progress' | 'message';
   readAt?: string | null;
 };
 
@@ -23,6 +23,16 @@ type AnnouncementRow = {
 type NotificationReadRow = {
   notification_key: string;
   read_at: string;
+};
+
+type MessageRow = {
+  id: string;
+  sender_id: string | null;
+  recipient_id: string | null;
+  target_class_id: string | null;
+  title: string;
+  body: string;
+  created_at: string;
 };
 
 type ClassRow = {
@@ -76,6 +86,23 @@ export async function getStudentNotifications(profile: Profile): Promise<Notific
   if (!isSupabaseConfigured) return [];
 
   try {
+    const [announcementNotifications, messageNotifications] = await Promise.all([
+      getStudentAnnouncementNotifications(profile),
+      getStudentMessageNotifications(profile),
+    ]);
+
+    const notifications = [...announcementNotifications, ...messageNotifications]
+      .sort((first, second) => new Date(second.createdAt).getTime() - new Date(first.createdAt).getTime())
+      .slice(0, 16);
+
+    return withReadState(profile.id, notifications);
+  } catch {
+    return [];
+  }
+}
+
+async function getStudentAnnouncementNotifications(profile: Profile): Promise<NotificationItem[]> {
+  try {
     const supabase = await createClient();
     let query = supabase
       .from('announcements')
@@ -91,17 +118,45 @@ export async function getStudentNotifications(profile: Profile): Promise<Notific
     const { data, error } = await query;
     if (error) throw error;
 
-    const notifications: NotificationItem[] = ((data ?? []) as AnnouncementRow[]).map((announcement) => ({
+    return ((data ?? []) as AnnouncementRow[]).map((announcement) => ({
       id: announcement.id,
       notificationKey: `announcement:${announcement.id}`,
       title: announcement.title,
       body: announcement.content,
       createdAt: announcement.published_at ?? announcement.created_at,
-      href: '/student/dashboard',
+      href: '/student/announcements',
       kind: 'announcement',
     }));
+  } catch {
+    return [];
+  }
+}
 
-    return withReadState(profile.id, notifications);
+async function getStudentMessageNotifications(profile: Profile): Promise<NotificationItem[]> {
+  try {
+    const supabase = await createClient();
+    let query = supabase
+      .from('messages')
+      .select('id, sender_id, recipient_id, target_class_id, title, body, created_at')
+      .order('created_at', { ascending: false })
+      .limit(8);
+
+    const scopes = [`recipient_id.eq.${profile.id}`, 'and(recipient_id.is.null,target_class_id.is.null)'];
+    if (profile.class_id) scopes.push(`target_class_id.eq.${profile.class_id}`);
+    query = query.or(scopes.join(','));
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    return ((data ?? []) as MessageRow[]).map((message) => ({
+      id: message.id,
+      notificationKey: `message:${message.id}`,
+      title: message.title,
+      body: message.body,
+      createdAt: message.created_at,
+      href: '/student/messages',
+      kind: 'message',
+    }));
   } catch {
     return [];
   }

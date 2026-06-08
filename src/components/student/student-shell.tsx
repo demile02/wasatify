@@ -29,6 +29,7 @@ import { cn } from '@/lib/utils';
 type StudentShellProps = {
   profile: Profile;
   notifications?: NotificationItem[];
+  messageUnreadCount?: number;
   children: ReactNode;
 };
 
@@ -49,7 +50,7 @@ const mobileItems = studentNavigation.filter((item) =>
   ['Beranda', 'Modul Belajar', 'Kuis', 'Refleksi Diri', 'Progress'].includes(item.label),
 );
 
-export function StudentShell({ profile, notifications = [], children }: StudentShellProps) {
+export function StudentShell({ profile, notifications = [], messageUnreadCount = 0, children }: StudentShellProps) {
   const pathname = usePathname() ?? '';
   const router = useRouter();
   const desktopSearchRef = useRef<HTMLInputElement>(null);
@@ -88,7 +89,12 @@ export function StudentShell({ profile, notifications = [], children }: StudentS
                 )}
               >
                 <Icon className="h-5 w-5" />
-                {item.label}
+                <span className="min-w-0 flex-1">{item.label}</span>
+                {item.label === 'Pesan' && messageUnreadCount > 0 && (
+                  <span className="grid min-h-5 min-w-5 place-items-center rounded-full bg-gold px-1.5 text-[10px] font-extrabold text-white">
+                    {messageUnreadCount > 9 ? '9+' : messageUnreadCount}
+                  </span>
+                )}
               </Link>
             );
           })}

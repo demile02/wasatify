@@ -47,6 +47,34 @@ export default async function StudentQuizPage({ params }: QuizPageProps) {
     );
   }
 
+  if (!quizData.prerequisiteMet) {
+    return (
+      <div>
+        <PageHeader
+          eyebrow="Kuis Pemahaman"
+          title="Kuis belum terbuka"
+          description={`Selesaikan materi modul ${quizData.module.title} terlebih dahulu sebelum membuka kuis.`}
+        />
+        <EmptyState
+          className="mt-8"
+          icon={Lock}
+          title="Kuis belum terbuka"
+          description="Kuis hanya bisa dikerjakan setelah semua materi pada modul ini selesai."
+          action={
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <Button asChild>
+                <Link href={`/student/modules/${quizData.module.id}`}>Lanjutkan Modul</Link>
+              </Button>
+              <Button asChild variant="outline">
+                <Link href={`/student/quizzes?moduleId=${quizData.module.id}`}>Kembali ke Menu Kuis</Link>
+              </Button>
+            </div>
+          }
+        />
+      </div>
+    );
+  }
+
   if (!quizData.quiz) {
     return (
       <div>
@@ -91,7 +119,7 @@ export default async function StudentQuizPage({ params }: QuizPageProps) {
           action={
             <div className="flex flex-col gap-3 sm:flex-row">
               <Button asChild variant="outline">
-                <Link href="/student/modules">Kembali ke Modul</Link>
+                <Link href={`/student/quizzes?moduleId=${quizData.module.id}`}>Kembali ke Menu Kuis</Link>
               </Button>
               {quizData.attemptInfo.latestAttemptId && (
                 <Button asChild>

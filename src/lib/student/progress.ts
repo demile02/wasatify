@@ -1,6 +1,6 @@
 import { demoStudentActivities, demoStudentModules } from '@/lib/demo/student';
 import { getStudentClassTeacherContext } from '@/lib/scope';
-import { getEffectiveStreak, getJakartaDateKey } from '@/lib/student/streak';
+import { getEffectiveStreak } from '@/lib/student/streak';
 import { createClient, isSupabaseConfigured } from '@/lib/supabase/server';
 import type { ModuleStatus } from '@/lib/types';
 
@@ -223,13 +223,7 @@ export async function getStudentProgressData(studentId: string): Promise<Student
     const achievements = (achievementResult.data ?? []) as AchievementRow[];
     let studentAchievements = (studentAchievementResult.data ?? []) as StudentAchievementRow[];
 
-    const profileStreak = getEffectiveStreak(profile?.streak_count, profile?.last_active_at);
-    const activityDates = [
-      ...quizAttempts.map((attempt) => attempt.submitted_at ?? attempt.created_at ?? ''),
-      ...reflections.map((reflection) => reflection.created_at),
-      ...progressRows.map((progress) => progress.completed_at ?? progress.updated_at ?? progress.created_at ?? ''),
-    ].filter(Boolean);
-    const streakDays = Math.max(profileStreak, calculateStreakDays(activityDates));
+    const streakDays = getEffectiveStreak(profile?.streak_count, profile?.last_active_at);
 
     const unlockResult = await unlockEligibleAchievements({
       studentId,
@@ -449,37 +443,6 @@ function resolveProgressStatus(progress: ModuleProgressRow | undefined, progress
   if (progress.status === 'completed' || progress.completed_at || progressPercent >= 100) return 'completed';
   if (progress.status === 'in_progress' || progressPercent > 0) return 'in_progress';
   return 'not_started';
-}
-
-function calculateStreakDays(activityDates: string[]) {
-  if (!activityDates.length) return 0;
-
-  const activeDays = new Set(
-    activityDates
-      .map((date) => new Date(date))
-      .filter((date) => !Number.isNaN(date.getTime()))
-      .map((date) => getJakartaDateKey(date)),
-  );
-
-  const cursor = new Date();
-  let streak = 0;
-
-  for (let index = 0; index < 365; index += 1) {
-    const key = getJakartaDateKey(cursor);
-
-    if (!activeDays.has(key)) {
-      if (streak === 0 && index === 0) {
-        cursor.setDate(cursor.getDate() - 1);
-        continue;
-      }
-      break;
-    }
-
-    streak += 1;
-    cursor.setDate(cursor.getDate() - 1);
-  }
-
-  return streak;
 }
 
 function buildDemoProgressData(): StudentProgressData {

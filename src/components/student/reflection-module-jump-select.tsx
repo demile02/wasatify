@@ -7,9 +7,10 @@ import type { ReflectionModuleOption } from '@/lib/student/reflection';
 
 type ReflectionModuleJumpSelectProps = {
   modules: ReflectionModuleOption[];
+  selectedModuleId?: string;
 };
 
-export function ReflectionModuleJumpSelect({ modules }: ReflectionModuleJumpSelectProps) {
+export function ReflectionModuleJumpSelect({ modules, selectedModuleId }: ReflectionModuleJumpSelectProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
@@ -21,13 +22,13 @@ export function ReflectionModuleJumpSelect({ modules }: ReflectionModuleJumpSele
         <span className="text-sm font-bold text-ink">Filter / pilih modul</span>
         <select
           className="h-12 rounded-xl border border-border bg-white px-4 text-sm font-semibold text-foreground outline-none focus:border-primary focus:ring-4 focus:ring-primary/10"
-          defaultValue=""
+          value={selectedModuleId ?? ''}
           disabled={isPending}
           onChange={(event) => {
             const nextModuleId = event.currentTarget.value;
             event.currentTarget.blur();
 
-            if (!nextModuleId) return;
+            if (!nextModuleId || nextModuleId === selectedModuleId) return;
 
             startTransition(() => {
               router.replace(`/student/reflection?moduleId=${nextModuleId}`);

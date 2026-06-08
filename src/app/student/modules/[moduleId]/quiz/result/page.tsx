@@ -49,7 +49,7 @@ export default async function StudentQuizResultPage({ params, searchParams }: Qu
           description="Kerjakan kuis terlebih dahulu agar skor dan progres tersimpan."
           action={
             <Button asChild>
-              <Link href={`/student/modules/${result.module.id}/quiz`}>
+              <Link href={`/student/quizzes?moduleId=${result.module.id}`}>
                 Mulai Kuis <RotateCcw className="h-4 w-4" />
               </Link>
             </Button>

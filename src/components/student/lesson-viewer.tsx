@@ -191,7 +191,7 @@ export function LessonViewer({ moduleItem, lessons, completedLessonIds }: Lesson
               </Button>
             ) : (
               <Button asChild>
-                <Link href={`/student/modules/${moduleItem.id}/quiz`}>
+                <Link href={`/student/quizzes?moduleId=${moduleItem.id}`}>
                   Mulai Kuis <ArrowRight className="h-4 w-4" />
                 </Link>
               </Button>
@@ -236,7 +236,7 @@ export function LessonViewer({ moduleItem, lessons, completedLessonIds }: Lesson
             Baca materi, tandai lesson selesai, lalu lanjutkan ke kuis untuk menyimpan hasil dan membuka modul berikutnya.
           </p>
           <Button asChild className="mt-4 w-full">
-            <Link href={`/student/modules/${moduleItem.id}/quiz`}>Buka Kuis</Link>
+            <Link href={`/student/quizzes?moduleId=${moduleItem.id}`}>Buka Kuis</Link>
           </Button>
         </SectionCard>
       </div>

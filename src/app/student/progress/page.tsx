@@ -186,6 +186,7 @@ export default async function StudentProgressPage() {
                   <div className="min-w-0 flex-1">
                     <p className="line-clamp-1 font-bold text-ink">{attempt.moduleTitle}</p>
                     <p className="mt-1 text-xs text-muted-foreground">{attempt.quizTitle}</p>
+                    <p className="mt-1 text-xs font-semibold text-primary">{formatDateTime(attempt.submittedAt)}</p>
                   </div>
                   <div className="text-right">
                     <p className="font-extrabold text-primary">{attempt.score}</p>

@@ -44,6 +44,9 @@ export type ReflectionPageData = {
   selectedModule: ReflectionModuleOption | null;
   existingReflection: ReflectionDraft | null;
   locked: boolean;
+  lockedReason: string | null;
+  lockedHref: string;
+  lockedCtaLabel: string;
 };
 
 type ReflectionRow = {
@@ -73,36 +76,58 @@ export async function getReflectionPageData(
   requestedModuleId?: string,
 ): Promise<ReflectionPageData> {
   if (!isSupabaseConfigured) {
-    const modules = await getReflectionModuleOptions(studentId);
+    const centerData = await getReflectionCenterData(studentId);
     const selectedModule = requestedModuleId
-      ? modules.find((moduleItem) => moduleItem.id === requestedModuleId) ?? null
-      : modules[0] ?? null;
+      ? centerData.modules.find((moduleItem) => moduleItem.id === requestedModuleId) ?? null
+      : centerData.modules[0] ?? null;
 
     return {
-      modules,
+      modules: centerData.modules,
       selectedModule,
       existingReflection: null,
       locked: selectedModule?.status === 'locked',
+      lockedReason: selectedModule?.status === 'locked' ? 'Selesaikan syarat modul terlebih dahulu.' : null,
+      lockedHref: selectedModule ? `/student/modules/${selectedModule.id}` : '/student/reflection',
+      lockedCtaLabel: selectedModule ? 'Lanjutkan Modul' : 'Kembali ke Refleksi',
     };
   }
 
-  const allModules = await getStudentModules(studentId);
-  const unlockedStartedModules = allModules.filter(
-    (moduleItem) => moduleItem.status !== 'locked' && moduleItem.status !== 'not_started',
-  );
-  const requestedModule = requestedModuleId
-    ? allModules.find((moduleItem) => moduleItem.id === requestedModuleId || moduleItem.slug === requestedModuleId) ?? null
+  const centerData = await getReflectionCenterData(studentId);
+  const centerItems = [...centerData.pending, ...centerData.completed];
+  const requestedItem = requestedModuleId
+    ? centerItems.find((moduleItem) => moduleItem.id === requestedModuleId)
     : null;
-  const selectedSource = requestedModuleId ? requestedModule : unlockedStartedModules[0] ?? null;
-  const modules = (requestedModule ? [requestedModule] : unlockedStartedModules).map(mapStudentModuleToOption);
-  const selectedModule = selectedSource ? mapStudentModuleToOption(selectedSource) : null;
+  const requestedBySlug = requestedModuleId && !requestedItem
+    ? (await getStudentModules(studentId)).find((moduleItem) => moduleItem.slug === requestedModuleId)
+    : null;
+  const selectedItem = requestedItem
+    ?? (requestedBySlug ? centerItems.find((moduleItem) => moduleItem.id === requestedBySlug.id) ?? null : null)
+    ?? (!requestedModuleId ? centerItems.find((moduleItem) => moduleItem.eligible) ?? centerItems[0] ?? null : null);
+  const selectedModule = selectedItem ? mapStudentModuleToOption(selectedItem) : null;
   const existingReflection = selectedModule ? await getExistingReflection(studentId, selectedModule.id) : null;
+  const hasValidExistingReflection =
+    Boolean(existingReflection?.reflectionText.trim().length && existingReflection.reflectionText.trim().length >= 30) &&
+    Boolean(existingReflection?.actionPlan.trim().length && existingReflection.actionPlan.trim().length >= 20);
+  const locked = !selectedItem || (!selectedItem.eligible && !hasValidExistingReflection);
 
   return {
-    modules,
+    modules: centerData.modules,
     selectedModule,
     existingReflection,
-    locked: selectedModule?.status === 'locked',
+    locked,
+    lockedReason: selectedItem
+      ? selectedItem.blockedReason
+      : 'Refleksi belum bisa dibuat karena modul tidak tersedia untuk akunmu.',
+    lockedHref: selectedItem?.blockedReason?.toLowerCase().includes('kuis')
+      ? `/student/quizzes?moduleId=${selectedItem.id}`
+      : selectedItem
+        ? `/student/modules/${selectedItem.id}`
+        : '/student/reflection',
+    lockedCtaLabel: selectedItem?.blockedReason?.toLowerCase().includes('kuis')
+      ? 'Buka Menu Kuis'
+      : selectedItem
+        ? 'Lanjutkan Modul'
+        : 'Kembali ke Refleksi',
   };
 }
 
@@ -208,21 +233,27 @@ export async function getReflectionCenterData(studentId: string): Promise<Reflec
         eligible,
         blockedReason: eligible
           ? null
-          : hasQuiz
-            ? 'Selesaikan kuis terlebih dahulu'
-            : 'Selesaikan modul terlebih dahulu',
+          : !moduleFinished
+            ? 'Selesaikan materi modul terlebih dahulu'
+            : hasQuiz
+              ? 'Selesaikan kuis terlebih dahulu'
+              : 'Selesaikan materi modul terlebih dahulu',
         ctaHref: eligible
           ? `/student/reflection?moduleId=${moduleItem.id}`
-          : hasQuiz
-            ? `/student/modules/${moduleItem.id}/quiz`
-            : `/student/modules/${moduleItem.id}`,
+          : !moduleFinished
+            ? `/student/modules/${moduleItem.id}`
+            : hasQuiz
+              ? `/student/quizzes?moduleId=${moduleItem.id}`
+              : `/student/modules/${moduleItem.id}`,
         ctaLabel: eligible
           ? hasValidReflection
             ? 'Lihat / Edit Refleksi'
             : 'Tulis Refleksi'
-          : hasQuiz
-            ? 'Selesaikan Kuis Terlebih Dahulu'
-            : 'Selesaikan Modul Terlebih Dahulu',
+          : !moduleFinished
+            ? 'Selesaikan Modul Terlebih Dahulu'
+            : hasQuiz
+              ? 'Buka Menu Kuis'
+              : 'Selesaikan Modul Terlebih Dahulu',
       } satisfies ReflectionCenterItem;
     });
 
@@ -271,8 +302,8 @@ function buildDemoCenterItem(moduleItem: ReflectionModuleOption, index: number):
     hasPassedQuiz: eligible,
     eligible,
     blockedReason: eligible ? null : 'Selesaikan kuis terlebih dahulu',
-    ctaHref: eligible ? `/student/reflection?moduleId=${moduleItem.id}` : `/student/modules/${moduleItem.id}/quiz`,
-    ctaLabel: completed ? 'Lihat / Edit Refleksi' : eligible ? 'Tulis Refleksi' : 'Selesaikan Kuis Terlebih Dahulu',
+    ctaHref: eligible ? `/student/reflection?moduleId=${moduleItem.id}` : `/student/quizzes?moduleId=${moduleItem.id}`,
+    ctaLabel: completed ? 'Lihat / Edit Refleksi' : eligible ? 'Tulis Refleksi' : 'Buka Menu Kuis',
   };
 }
 

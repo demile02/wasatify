@@ -128,16 +128,24 @@ export async function submitReflectionAction(input: SubmitReflectionInput): Prom
       return { ok: false, error: 'Modul ini tidak tersedia untuk kelasmu.' };
     }
 
-    const now = new Date().toISOString();
     const { data: existingReflection, error: existingReflectionError } = await supabase
       .from('reflections')
-      .select('id')
+      .select('id, reflection_text, action_plan')
       .eq('student_id', user.id)
       .eq('module_id', moduleId)
-      .maybeSingle<{ id: string }>();
+      .maybeSingle<{ id: string; reflection_text: string | null; action_plan: string | null }>();
 
     if (existingReflectionError) throw existingReflectionError;
 
+    const hasValidExistingReflection =
+      (existingReflection?.reflection_text ?? '').trim().length >= 30 &&
+      (existingReflection?.action_plan ?? '').trim().length >= 20;
+    const eligible = await canSubmitReflectionForModule(user.id, moduleId, hasValidExistingReflection);
+    if (!eligible) {
+      return { ok: false, error: 'Refleksi belum terbuka. Selesaikan materi dan kuis terlebih dahulu.' };
+    }
+
+    const now = new Date().toISOString();
     const { error: reflectionError } = await supabase.from('reflections').upsert(
       {
         student_id: user.id,
@@ -383,6 +391,10 @@ export async function submitQuizAttemptAction(
       return { ok: false, error: 'Modul ini tidak tersedia untuk kelasmu.' };
     }
 
+    if (!(await hasCompletedModuleLessons(user.id, payload.moduleId))) {
+      return { ok: false, error: 'Selesaikan semua materi modul sebelum mengerjakan kuis.' };
+    }
+
     const { data: quiz, error: quizError } = await supabase
       .from('quizzes')
       .select('id, module_id, passing_score, max_attempts, allow_retake')
@@ -552,6 +564,75 @@ function parseStartedAt(startedAt: string, fallback: Date) {
 async function canStudentAccessModule(studentId: string, moduleId: string) {
   const moduleIds = await getStudentAvailableModuleIds(studentId);
   return moduleIds.includes(moduleId);
+}
+
+async function canSubmitReflectionForModule(studentId: string, moduleId: string, hasValidExistingReflection: boolean) {
+  if (hasValidExistingReflection) return true;
+
+  const supabase = await createClient();
+  const [lessonCountResult, completedLessonCountResult, quizzesResult] = await Promise.all([
+    supabase.from('lessons').select('id', { count: 'exact', head: true }).eq('module_id', moduleId),
+    supabase
+      .from('lesson_progress')
+      .select('id', { count: 'exact', head: true })
+      .eq('student_id', studentId)
+      .eq('module_id', moduleId)
+      .not('completed_at', 'is', null),
+    supabase
+      .from('quizzes')
+      .select('id, passing_score')
+      .eq('module_id', moduleId)
+      .eq('is_published', true),
+  ]);
+
+  if (lessonCountResult.error || completedLessonCountResult.error || quizzesResult.error) {
+    throw lessonCountResult.error ?? completedLessonCountResult.error ?? quizzesResult.error;
+  }
+
+  const totalLessons = lessonCountResult.count ?? 0;
+  const completedLessons = completedLessonCountResult.count ?? 0;
+  const allLessonsCompleted = totalLessons === 0 || completedLessons >= totalLessons;
+  if (!allLessonsCompleted) return false;
+
+  const quizzes = (quizzesResult.data ?? []) as { id: string; passing_score: number | null }[];
+  if (!quizzes.length) return true;
+
+  const { data: attempts, error: attemptsError } = await supabase
+    .from('quiz_attempts')
+    .select('quiz_id, score, passed')
+    .eq('student_id', studentId)
+    .in('quiz_id', quizzes.map((quiz) => quiz.id));
+
+  if (attemptsError) throw attemptsError;
+
+  return quizzes.some((quiz) =>
+    ((attempts ?? []) as { quiz_id: string; score: number | null; passed: boolean | null }[]).some(
+      (attempt) =>
+        attempt.quiz_id === quiz.id &&
+        (Boolean(attempt.passed) || Number(attempt.score ?? 0) >= (quiz.passing_score ?? 70)),
+    ),
+  );
+}
+
+async function hasCompletedModuleLessons(studentId: string, moduleId: string) {
+  const supabase = await createClient();
+  const [lessonCountResult, completedLessonCountResult] = await Promise.all([
+    supabase.from('lessons').select('id', { count: 'exact', head: true }).eq('module_id', moduleId),
+    supabase
+      .from('lesson_progress')
+      .select('id', { count: 'exact', head: true })
+      .eq('student_id', studentId)
+      .eq('module_id', moduleId)
+      .not('completed_at', 'is', null),
+  ]);
+
+  if (lessonCountResult.error || completedLessonCountResult.error) {
+    throw lessonCountResult.error ?? completedLessonCountResult.error;
+  }
+
+  const totalLessons = lessonCountResult.count ?? 0;
+  const completedLessons = completedLessonCountResult.count ?? 0;
+  return totalLessons === 0 || completedLessons >= totalLessons;
 }
 
 function buildDemoQuizResult(input: SubmitQuizAttemptInput): SubmitQuizAttemptResult {

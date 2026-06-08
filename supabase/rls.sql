@@ -181,6 +181,8 @@ begin
         'student_achievements',
         'announcements',
         'notification_reads',
+        'messages',
+        'message_reads',
         'media_assets',
         'infographic_assets'
       )
@@ -209,6 +211,8 @@ alter table public.achievements enable row level security;
 alter table public.student_achievements enable row level security;
 alter table public.announcements enable row level security;
 alter table public.notification_reads enable row level security;
+alter table public.messages enable row level security;
+alter table public.message_reads enable row level security;
 alter table public.media_assets enable row level security;
 alter table public.infographic_assets enable row level security;
 
@@ -780,6 +784,104 @@ with check (user_id = auth.uid());
 
 create policy "notification_reads_delete_own"
 on public.notification_reads for delete
+to authenticated
+using (user_id = auth.uid());
+
+create policy "messages_admin_all"
+on public.messages for all
+to authenticated
+using (public.is_admin())
+with check (public.is_admin());
+
+create policy "messages_select_student_related"
+on public.messages for select
+to authenticated
+using (
+  recipient_id = auth.uid()
+  or (
+    target_class_id is not null
+    and exists (
+      select 1
+      from public.profiles p
+      where p.id = auth.uid()
+        and p.role = 'student'::public.app_role
+        and p.class_id = messages.target_class_id
+    )
+  )
+  or (recipient_id is null and target_class_id is null)
+);
+
+create policy "messages_select_teacher_sent"
+on public.messages for select
+to authenticated
+using (sender_id = auth.uid());
+
+create policy "messages_insert_teacher_scoped"
+on public.messages for insert
+to authenticated
+with check (
+  sender_id = auth.uid()
+  and (
+    public.is_admin()
+    or (
+      public.is_teacher()
+      and (
+        target_class_id is null
+        or public.teacher_owns_class(target_class_id)
+      )
+      and (
+        recipient_id is null
+        or public.teacher_can_read_student(recipient_id)
+      )
+    )
+  )
+);
+
+create policy "messages_update_teacher_sent"
+on public.messages for update
+to authenticated
+using (sender_id = auth.uid())
+with check (
+  sender_id = auth.uid()
+  and (
+    public.is_admin()
+    or (
+      public.is_teacher()
+      and (target_class_id is null or public.teacher_owns_class(target_class_id))
+      and (recipient_id is null or public.teacher_can_read_student(recipient_id))
+    )
+  )
+);
+
+create policy "messages_delete_teacher_sent"
+on public.messages for delete
+to authenticated
+using (sender_id = auth.uid() or public.is_admin());
+
+create policy "message_reads_admin_all"
+on public.message_reads for all
+to authenticated
+using (public.is_admin())
+with check (public.is_admin());
+
+create policy "message_reads_select_own"
+on public.message_reads for select
+to authenticated
+using (user_id = auth.uid());
+
+create policy "message_reads_insert_own"
+on public.message_reads for insert
+to authenticated
+with check (user_id = auth.uid());
+
+create policy "message_reads_update_own"
+on public.message_reads for update
+to authenticated
+using (user_id = auth.uid())
+with check (user_id = auth.uid());
+
+create policy "message_reads_delete_own"
+on public.message_reads for delete
 to authenticated
 using (user_id = auth.uid());
 

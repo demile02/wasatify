@@ -7,7 +7,6 @@ import {
   Facebook,
   Instagram,
   Mail,
-  Monitor,
   PenLine,
   PlayCircle,
   Quote,
@@ -18,6 +17,7 @@ import {
   Youtube,
 } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { redirect } from 'next/navigation';
 import { PublicHeader } from '@/components/layout/public-header';
 import { InstallAppPrompt } from '@/components/pwa/install-app-prompt';
@@ -314,66 +314,26 @@ function SectionHeading({
 
 function HeroLearningIllustration() {
   return (
-    <div className="relative">
-      <div className="relative overflow-hidden rounded-[2rem] border border-primary/10 bg-white shadow-soft">
-        <div className="islamic-pattern relative min-h-[430px] p-5 sm:min-h-[540px] sm:p-8">
-          <div className="absolute inset-x-8 top-8 h-44 rounded-b-[3rem] rounded-t-[8rem] bg-mint/85" />
-          <div className="absolute left-12 top-24 h-36 w-10 rounded-t-full bg-primary/15 sm:left-16" />
-          <div className="absolute right-12 top-24 h-36 w-10 rounded-t-full bg-primary/15 sm:right-16" />
-          <div className="absolute left-1/2 top-16 h-44 w-44 -translate-x-1/2 rounded-t-full border border-primary/10 bg-white/70" />
-          <div className="absolute left-1/2 top-11 h-10 w-10 -translate-x-1/2 rounded-t-full bg-gold/20" />
-
-          <div className="relative z-10 ml-auto grid w-fit grid-cols-3 gap-2">
-            {[BookOpen, ShieldCheck, BarChart3].map((Icon, index) => (
-              <div key={index} className="grid h-12 w-12 place-items-center rounded-2xl border border-primary/10 bg-white text-primary shadow-sm">
-                <Icon className="h-5 w-5" />
-              </div>
-            ))}
-          </div>
-
-          <div className="absolute bottom-0 left-0 right-0 z-10 bg-[linear-gradient(180deg,transparent,hsl(var(--cream))_34%,hsl(var(--cream)))] px-5 pb-6 pt-24 sm:px-8">
-            <div className="grid gap-4 md:grid-cols-[0.95fr_1.05fr] md:items-end">
-              <div className="rounded-3xl border border-primary/10 bg-white p-4 shadow-card">
-                <div className="mb-4 flex items-center gap-3">
-                  <div className="grid h-12 w-12 place-items-center rounded-2xl bg-primary text-white">
-                    <Users className="h-6 w-6" />
-                  </div>
-                  <div>
-                    <p className="font-bold text-ink">Siswa belajar</p>
-                    <p className="text-xs text-muted-foreground">Materi • Kuis • Refleksi</p>
-                  </div>
-                </div>
-                <div className="space-y-3">
-                  <ProgressBar value={72} label="Progress modul" showValue />
-                  <div className="grid grid-cols-3 gap-2 text-center text-xs font-semibold text-muted-foreground">
-                    <span className="rounded-xl bg-mint px-2 py-2">12 Modul</span>
-                    <span className="rounded-xl bg-cream px-2 py-2">18 Kuis</span>
-                    <span className="rounded-xl bg-mint px-2 py-2">7 Hari</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-3xl border border-primary/10 bg-dark-emerald p-4 text-white shadow-card">
-                <div className="mb-4 flex items-center justify-between">
-                  <div>
-                    <p className="font-bold">Ruang belajar digital</p>
-                    <p className="text-xs text-white/68">Akses fleksibel untuk siswa dan guru</p>
-                  </div>
-                  <Monitor className="h-6 w-6 text-gold" />
-                </div>
-                <div className="rounded-2xl bg-white/10 p-3">
-                  <div className="mb-3 flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-gold" />
-                    <span className="h-2 w-12 rounded-full bg-white/35" />
-                    <span className="h-2 w-8 rounded-full bg-white/25" />
-                  </div>
-                  <div className="grid gap-2">
-                    <span className="h-3 rounded-full bg-white/65" />
-                    <span className="h-3 w-3/4 rounded-full bg-white/35" />
-                    <span className="h-3 w-1/2 rounded-full bg-white/25" />
-                  </div>
-                </div>
-              </div>
+    <div className="relative overflow-hidden rounded-[2rem] border border-primary/10 bg-white p-3 shadow-soft">
+      <div className="relative aspect-[4/3] min-h-[360px] overflow-hidden rounded-[1.55rem] bg-mint sm:min-h-[480px]">
+        <Image
+          src="/assets/wasatify-hero.png"
+          alt="Ilustrasi pengalaman belajar WASATIFY"
+          fill
+          priority
+          sizes="(min-width: 1024px) 48vw, 100vw"
+          className="object-cover"
+        />
+        <div className="absolute inset-x-4 bottom-4 rounded-3xl border border-white/50 bg-white/88 p-4 shadow-card backdrop-blur sm:inset-x-6 sm:bottom-6">
+          <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-center">
+            <div>
+              <p className="text-sm font-bold text-primary">Belajar ringkas dan reflektif</p>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                Materi, kuis, refleksi, dan progress belajar tersaji dalam satu alur.
+              </p>
+            </div>
+            <div className="min-w-40">
+              <ProgressBar value={72} label="Progress modul" showValue />
             </div>
           </div>
         </div>

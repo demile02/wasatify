@@ -1,4 +1,5 @@
 import { Bell, BookOpen, ClipboardCheck, Flame, MonitorPlay, Trophy } from 'lucide-react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { EmptyState } from '@/components/shared/empty-state';
 import { ModuleCard } from '@/components/shared/module-card';
@@ -69,7 +70,7 @@ export default async function StudentDashboardPage() {
             {continueModule ? (
               <ContinueLearningCard moduleItem={continueModule} />
             ) : (
-              <CompletionCard completedCount={completedCount} firstCompletedModule={firstCompletedModule} />
+              <CompletionCard completedCount={completedCount} />
             )}
 
             <SectionCard>
@@ -79,10 +80,16 @@ export default async function StudentDashboardPage() {
               </div>
               {dashboard.announcements.length ? (
                 <div className="space-y-4">
-                  {dashboard.announcements.map((announcement) => (
-                    <div key={announcement.title} className="border-b border-border pb-4 last:border-0 last:pb-0">
+                  {dashboard.announcements.map((announcement, index) => (
+                    <div
+                      key={`${announcement.title}-${announcement.published_at ?? 'no-date'}-${index}`}
+                      className="border-b border-border pb-4 last:border-0 last:pb-0"
+                    >
                       <p className="text-sm font-bold text-foreground">{announcement.title}</p>
                       <p className="mt-1 text-sm leading-6 text-muted-foreground">{announcement.content}</p>
+                      {announcement.published_at && (
+                        <p className="mt-2 text-xs font-semibold text-primary">{formatDateTime(announcement.published_at)}</p>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -188,28 +195,34 @@ function ContinueLearningCard({ moduleItem }: { moduleItem: StudentLearningModul
         </div>
 
         <div className="grid min-h-72 place-items-center bg-[linear-gradient(135deg,hsl(var(--cream)),hsl(var(--mint)))] p-6">
-          <div className="relative h-56 w-full max-w-sm rounded-[2rem] border border-primary/10 bg-white/75 p-5 shadow-card">
-            <div className="absolute left-8 top-8 h-20 w-20 rounded-full bg-primary/10" />
-            <div className="absolute right-8 top-10 h-16 w-16 rounded-full bg-gold/15" />
-            <div className="relative mx-auto mt-8 grid h-24 w-24 place-items-center rounded-[2rem] bg-primary text-white shadow-card">
-              <MonitorPlay className="h-12 w-12" />
+          {moduleItem.imageSrc ? (
+            <div className="relative aspect-[4/3] w-full max-w-sm overflow-hidden rounded-[2rem] border border-primary/10 bg-white shadow-card">
+              <Image
+                src={moduleItem.imageSrc}
+                alt=""
+                fill
+                sizes="(min-width: 1280px) 28vw, (min-width: 768px) 45vw, 100vw"
+                className="object-cover"
+              />
             </div>
-            <div className="mx-auto mt-6 h-3 w-3/4 rounded-full bg-primary/20" />
-            <div className="mx-auto mt-3 h-3 w-1/2 rounded-full bg-gold/25" />
-          </div>
+          ) : (
+            <div className="relative h-56 w-full max-w-sm rounded-[2rem] border border-primary/10 bg-white/75 p-5 shadow-card">
+              <div className="absolute left-8 top-8 h-20 w-20 rounded-full bg-primary/10" />
+              <div className="absolute right-8 top-10 h-16 w-16 rounded-full bg-gold/15" />
+              <div className="relative mx-auto mt-8 grid h-24 w-24 place-items-center rounded-[2rem] bg-primary text-white shadow-card">
+                <MonitorPlay className="h-12 w-12" />
+              </div>
+              <div className="mx-auto mt-6 h-3 w-3/4 rounded-full bg-primary/20" />
+              <div className="mx-auto mt-3 h-3 w-1/2 rounded-full bg-gold/25" />
+            </div>
+          )}
         </div>
       </div>
     </SectionCard>
   );
 }
 
-function CompletionCard({
-  completedCount,
-  firstCompletedModule,
-}: {
-  completedCount: number;
-  firstCompletedModule?: StudentLearningModule;
-}) {
+function CompletionCard({ completedCount }: { completedCount: number }) {
   return (
     <SectionCard className="grid min-h-72 place-items-center bg-[linear-gradient(135deg,hsl(var(--mint)),hsl(var(--cream)))]">
       <div className="max-w-xl text-center">
@@ -226,9 +239,7 @@ function CompletionCard({
             <Link href="/student/progress">Lihat Progress</Link>
           </Button>
           <Button asChild variant="outline">
-            <Link href={firstCompletedModule ? `/student/modules/${firstCompletedModule.id}` : '/student/modules'}>
-              Pelajari Ulang Modul
-            </Link>
+            <Link href="/student/modules">Pelajari Ulang Modul</Link>
           </Button>
         </div>
       </div>

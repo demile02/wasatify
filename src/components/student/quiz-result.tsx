@@ -2,6 +2,7 @@
 
 import { ArrowLeft, BookOpenCheck, ClipboardList, RotateCcw, Star } from 'lucide-react';
 import Link from 'next/link';
+import type { MouseEvent } from 'react';
 import { ProgressBar } from '@/components/shared/progress-bar';
 import { SectionCard } from '@/components/shared/section-card';
 import { Button } from '@/components/ui/button';
@@ -14,6 +15,18 @@ type QuizResultProps = {
 
 export function QuizResult({ result }: QuizResultProps) {
   if (!result.module) return null;
+
+  function handleReviewClick(event: MouseEvent<HTMLAnchorElement>) {
+    event.preventDefault();
+
+    const reviewSection = document.getElementById('pembahasan');
+    if (!reviewSection) return;
+
+    reviewSection.querySelectorAll('details').forEach((item) => {
+      item.open = true;
+    });
+    reviewSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 
   return (
     <div className="mx-auto mt-8 max-w-4xl space-y-6">
@@ -52,14 +65,14 @@ export function QuizResult({ result }: QuizResultProps) {
 
         <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Button asChild>
-            <a href="#pembahasan">
+            <a href="#pembahasan" onClick={handleReviewClick}>
               <ClipboardList className="h-4 w-4" />
               Lihat Pembahasan
             </a>
           </Button>
           {!result.passed && (
             <Button asChild variant="outline">
-              <Link href={`/student/modules/${result.module.id}/quiz`}>
+              <Link href={`/student/quizzes?moduleId=${result.module.id}`}>
                 <RotateCcw className="h-4 w-4" />
                 Ulangi Kuis
               </Link>

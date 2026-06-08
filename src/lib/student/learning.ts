@@ -95,6 +95,7 @@ export type QuizLearningData = {
   module: StudentModule | null;
   quiz: StudentQuiz | null;
   attemptInfo: StudentQuizAttemptInfo | null;
+  prerequisiteMet: boolean;
   isDemo: boolean;
 };
 
@@ -305,8 +306,10 @@ export async function getQuizLearningData(moduleId: string, studentId?: string):
   const moduleItem = await findStudentModule(moduleId, studentId);
 
   if (!moduleItem) {
-    return { module: null, quiz: null, attemptInfo: null, isDemo: !isSupabaseConfigured };
+    return { module: null, quiz: null, attemptInfo: null, prerequisiteMet: false, isDemo: !isSupabaseConfigured };
   }
+
+  const prerequisiteMet = moduleItem.status === 'completed' || moduleItem.progress >= 100;
 
   if (!isSupabaseConfigured) {
     return {
@@ -323,6 +326,7 @@ export async function getQuizLearningData(moduleId: string, studentId?: string):
         hasPassed: false,
         hasReflection: false,
       },
+      prerequisiteMet: true,
       isDemo: true,
     };
   }
@@ -340,7 +344,7 @@ export async function getQuizLearningData(moduleId: string, studentId?: string):
     if (quizError) throw quizError;
 
     const quizRow = ((quizRows ?? []) as QuizRow[])[0];
-    if (!quizRow) return { module: moduleItem, quiz: null, attemptInfo: null, isDemo: false };
+    if (!quizRow) return { module: moduleItem, quiz: null, attemptInfo: null, prerequisiteMet, isDemo: false };
 
     const { data: questionRows, error: questionError } = await supabase
       .from('quiz_questions')
@@ -396,10 +400,11 @@ export async function getQuizLearningData(moduleId: string, studentId?: string):
         hasPassed,
         hasReflection,
       },
+      prerequisiteMet,
       isDemo: false,
     };
   } catch {
-    return { module: moduleItem, quiz: demoQuizForModule(moduleItem), attemptInfo: null, isDemo: true };
+    return { module: moduleItem, quiz: demoQuizForModule(moduleItem), attemptInfo: null, prerequisiteMet, isDemo: true };
   }
 }
 

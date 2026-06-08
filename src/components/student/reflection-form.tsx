@@ -1,14 +1,23 @@
 'use client';
 
-import { useMemo, useState, useTransition } from 'react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
 import { PenLine, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { EmptyState } from '@/components/shared/empty-state';
 import { ProgressBar } from '@/components/shared/progress-bar';
 import { SectionCard } from '@/components/shared/section-card';
 import { StatusBadge } from '@/components/shared/status-badge';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { submitReflectionAction } from '@/lib/student/actions';
@@ -27,12 +36,17 @@ const minReflectionLength = 30;
 const minActionLength = 20;
 
 export function ReflectionForm({ modules, selectedModuleId, existingReflection, showCancel = false }: ReflectionFormProps) {
+  const router = useRouter();
   const firstAvailableModule = selectedModuleId ?? modules[0]?.id ?? '';
   const [moduleId, setModuleId] = useState(firstAvailableModule);
   const [reflectionText, setReflectionText] = useState(existingReflection?.reflectionText ?? '');
   const [actionPlan, setActionPlan] = useState(existingReflection?.actionPlan ?? '');
   const [error, setError] = useState<string | null>(null);
   const [hasSaved, setHasSaved] = useState(Boolean(existingReflection));
+  const [savedReflectionText, setSavedReflectionText] = useState(existingReflection?.reflectionText ?? '');
+  const [savedActionPlan, setSavedActionPlan] = useState(existingReflection?.actionPlan ?? '');
+  const [pendingHref, setPendingHref] = useState<string | null>(null);
+  const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const selectedModule = useMemo(
@@ -43,6 +57,56 @@ export function ReflectionForm({ modules, selectedModuleId, existingReflection, 
   const reflectionTooShort = reflectionText.trim().length < minReflectionLength;
   const actionTooShort = actionPlan.trim().length < minActionLength;
   const canSubmit = Boolean(moduleId && !reflectionTooShort && !actionTooShort && !isOverLimit && !isPending);
+  const hasUnsavedChanges = reflectionText !== savedReflectionText || actionPlan !== savedActionPlan;
+
+  useEffect(() => {
+    setModuleId(selectedModuleId ?? modules[0]?.id ?? '');
+  }, [modules, selectedModuleId]);
+
+  useEffect(() => {
+    if (!hasUnsavedChanges) return;
+
+    function handleBeforeUnload(event: BeforeUnloadEvent) {
+      event.preventDefault();
+      event.returnValue = '';
+    }
+
+    function handlePopState() {
+      window.history.pushState({ wasatifyReflectionGuard: true }, '', window.location.href);
+      setPendingHref('/student/reflection');
+      setShowUnsavedDialog(true);
+    }
+
+    function handleDocumentClick(event: MouseEvent) {
+      const target = event.target as HTMLElement | null;
+      const link = target?.closest('a[href]') as HTMLAnchorElement | null;
+      if (!link || link.target || link.download) return;
+      if (link.href.startsWith('mailto:') || link.href.startsWith('tel:')) return;
+
+      const nextUrl = new URL(link.href);
+      if (nextUrl.origin !== window.location.origin) return;
+
+      const currentHref = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+      const nextHref = `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`;
+      if (nextHref === currentHref) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      setPendingHref(nextHref);
+      setShowUnsavedDialog(true);
+    }
+
+    window.history.pushState({ wasatifyReflectionGuard: true }, '', window.location.href);
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('popstate', handlePopState);
+    document.addEventListener('click', handleDocumentClick, true);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('popstate', handlePopState);
+      document.removeEventListener('click', handleDocumentClick, true);
+    };
+  }, [hasUnsavedChanges]);
 
   if (!modules.length) {
     return (
@@ -53,7 +117,7 @@ export function ReflectionForm({ modules, selectedModuleId, existingReflection, 
     );
   }
 
-  function submitReflection() {
+  async function saveReflection() {
     setError(null);
 
     if (!canSubmit) {
@@ -67,26 +131,57 @@ export function ReflectionForm({ modules, selectedModuleId, existingReflection, 
               : 'Pilih modul terlebih dahulu.';
       setError(message);
       toast.warning(message);
+      return false;
+    }
+
+    return new Promise<boolean>((resolve) => {
+      startTransition(async () => {
+        const result = await submitReflectionAction({
+          moduleId,
+          reflectionText,
+          actionPlan,
+        });
+
+        if (!result.ok) {
+          const message = result.error ?? 'Refleksi belum berhasil disimpan.';
+          setError(message);
+          toast.error(message);
+          resolve(false);
+          return;
+        }
+
+        setHasSaved(true);
+        setSavedReflectionText(reflectionText);
+        setSavedActionPlan(actionPlan);
+        toast.success('Refleksi berhasil disimpan.');
+        resolve(true);
+      });
+    });
+  }
+
+  function submitReflection() {
+    void saveReflection();
+  }
+
+  function requestNavigation(nextHref: string) {
+    if (!hasUnsavedChanges) {
+      router.push(nextHref);
       return;
     }
 
-    startTransition(async () => {
-      const result = await submitReflectionAction({
-        moduleId,
-        reflectionText,
-        actionPlan,
-      });
+    setPendingHref(nextHref);
+    setShowUnsavedDialog(true);
+  }
 
-      if (!result.ok) {
-        const message = result.error ?? 'Refleksi belum berhasil disimpan.';
-        setError(message);
-        toast.error(message);
-        return;
-      }
+  function continueNavigation() {
+    if (!pendingHref) return;
+    setShowUnsavedDialog(false);
+    router.push(pendingHref);
+  }
 
-      setHasSaved(true);
-      toast.success('Refleksi berhasil disimpan.');
-    });
+  async function saveThenContinue() {
+    const saved = await saveReflection();
+    if (saved) continueNavigation();
   }
 
   return (
@@ -94,7 +189,7 @@ export function ReflectionForm({ modules, selectedModuleId, existingReflection, 
       <SectionCard>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <label htmlFor="reflection-module" className="text-sm font-bold text-ink">
-            {selectedModuleId ? 'Modul dipilih' : 'Pilih modul'}
+            Pilih modul
           </label>
           {selectedModuleId && (
             <Button asChild type="button" variant="ghost" size="sm" className="w-fit px-0 text-primary hover:bg-transparent">
@@ -102,7 +197,13 @@ export function ReflectionForm({ modules, selectedModuleId, existingReflection, 
             </Button>
           )}
         </div>
-        <Select value={moduleId} onValueChange={setModuleId} disabled={Boolean(selectedModuleId)}>
+        <Select
+          value={moduleId}
+          onValueChange={(nextModuleId) => {
+            if (nextModuleId === moduleId) return;
+            requestNavigation(`/student/reflection?moduleId=${nextModuleId}`);
+          }}
+        >
           <SelectTrigger id="reflection-module" className="mt-2 h-12 rounded-xl bg-white font-semibold">
             <SelectValue placeholder="Pilih modul untuk refleksi" />
           </SelectTrigger>
@@ -159,14 +260,36 @@ export function ReflectionForm({ modules, selectedModuleId, existingReflection, 
 
       <div className="flex flex-col gap-3 sm:flex-row">
         {showCancel && (
-          <Button asChild type="button" variant="outline" className="sm:w-auto">
-            <Link href="/student/reflection">Batalkan</Link>
+          <Button type="button" variant="outline" className="sm:w-auto" onClick={() => requestNavigation('/student/reflection')}>
+            Batalkan
           </Button>
         )}
         <Button type="button" className="w-full" disabled={isPending || !moduleId} onClick={submitReflection}>
           {isPending ? 'Menyimpan...' : hasSaved ? 'Simpan Perubahan' : 'Simpan Refleksi'}
         </Button>
       </div>
+
+      <Dialog open={showUnsavedDialog} onOpenChange={setShowUnsavedDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Perubahan belum disimpan</DialogTitle>
+            <DialogDescription>
+              Kamu sudah menulis refleksi, tetapi belum menyimpan perubahan.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button type="button" variant="destructive" onClick={continueNavigation}>
+              Buang Perubahan
+            </Button>
+            <Button type="button" variant="outline" onClick={() => setShowUnsavedDialog(false)}>
+              Lanjut Menulis
+            </Button>
+            <Button type="button" disabled={isPending} onClick={() => void saveThenContinue()}>
+              Simpan Perubahan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
     </div>
   );

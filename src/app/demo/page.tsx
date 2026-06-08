@@ -1,5 +1,4 @@
 import {
-  ArrowRight,
   BarChart3,
   BookOpen,
   ClipboardCheck,
@@ -46,17 +45,9 @@ export default function DemoPage() {
       <header className="border-b border-primary/10 bg-white/88 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl flex-col gap-5 px-5 py-5 sm:px-8 lg:flex-row lg:items-center lg:justify-between">
           <AppLogo href="/" size="sm" />
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <Button asChild variant="outline">
-              <Link href="/register/student">Coba sebagai Siswa</Link>
-            </Button>
-            <Button asChild>
-              <Link href="/register/teacher">
-                Coba sebagai Guru
-                <ArrowRight className="h-4 w-4" />
-              </Link>
-            </Button>
-          </div>
+          <Link href="/" className="text-sm font-bold text-primary hover:underline">
+            Beranda
+          </Link>
         </div>
       </header>
 
@@ -76,13 +67,13 @@ export default function DemoPage() {
             </p>
             <div className="mt-7 flex flex-col gap-3 sm:flex-row">
               <Button asChild size="lg">
-                <Link href="/register/student">
+                <Link href="/demo/student">
                   <GraduationCap className="h-5 w-5" />
                   Coba sebagai Siswa
                 </Link>
               </Button>
               <Button asChild variant="outline" size="lg">
-                <Link href="/register/teacher">
+                <Link href="/demo/teacher">
                   <Users className="h-5 w-5" />
                   Coba sebagai Guru
                 </Link>

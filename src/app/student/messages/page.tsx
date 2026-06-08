@@ -1,8 +1,13 @@
-import { Mail } from 'lucide-react';
-import { EmptyState } from '@/components/shared/empty-state';
 import { PageHeader } from '@/components/shared/page-header';
+import { StudentMessagesList } from '@/components/student/student-messages-list';
+import { requireStudent } from '@/lib/auth/server';
+import { demoStudentProfile } from '@/lib/demo/student';
+import { getStudentMessagesData } from '@/lib/student/messages';
 
-export default function StudentMessagesPage() {
+export default async function StudentMessagesPage() {
+  const profile = (await requireStudent()) ?? demoStudentProfile;
+  const messages = await getStudentMessagesData(profile);
+
   return (
     <div>
       <PageHeader
@@ -10,12 +15,7 @@ export default function StudentMessagesPage() {
         title="Pesan"
         description="Pesan dari guru atau admin akan muncul di sini."
       />
-      <EmptyState
-        className="mt-8"
-        icon={Mail}
-        title="Belum ada pesan"
-        description="Kotak pesan masih kosong untuk saat ini."
-      />
+      <StudentMessagesList messages={messages} />
     </div>
   );
 }

@@ -259,7 +259,7 @@ export function LessonReader({ moduleItem, lessons, completedLessonIds }: Lesson
               </Button>
             ) : isLastLessonCompleted ? (
               <Button asChild>
-                <Link href={`/student/modules/${moduleItem.id}/quiz`}>
+                <Link href={`/student/quizzes?moduleId=${moduleItem.id}`}>
                   Lanjut ke Kuis <ArrowRight className="h-4 w-4" />
                 </Link>
               </Button>
