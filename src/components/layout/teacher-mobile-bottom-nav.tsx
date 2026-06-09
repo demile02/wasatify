@@ -1,25 +1,47 @@
 'use client';
 
-import { BarChart3, BookOpen, ClipboardCheck, Home, Users } from 'lucide-react';
+import {
+  BarChart3,
+  BookOpen,
+  ClipboardCheck,
+  Home,
+  ImageIcon,
+  Mail,
+  Megaphone,
+  MessageSquareText,
+  Settings,
+  Users,
+} from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { getQuickAccessNavItems } from '@/lib/quick-access';
+import type { Profile } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
-const mobileTeacherItems = [
-  { label: 'Beranda', href: '/teacher/dashboard', icon: Home },
-  { label: 'Kelas', href: '/teacher/classes', icon: Users },
-  { label: 'Modul', href: '/teacher/modules', icon: BookOpen },
-  { label: 'Kuis', href: '/teacher/quizzes', icon: ClipboardCheck },
-  { label: 'Laporan', href: '/teacher/reports', icon: BarChart3 },
-];
+const iconMap = {
+  Home,
+  Users,
+  BookOpen,
+  ClipboardCheck,
+  BarChart3,
+  MessageSquareText,
+  Megaphone,
+  ImageIcon,
+  Mail,
+  Settings,
+};
 
-export function TeacherMobileBottomNav() {
+export function TeacherMobileBottomNav({ profile }: { profile: Profile }) {
   const pathname = usePathname() ?? '';
+  const mobileTeacherItems = getQuickAccessNavItems(profile.quick_access, 'teacher');
 
   return (
-    <nav className="safe-bottom-nav fixed inset-x-0 bottom-0 z-[70] grid grid-cols-5 border-t border-primary/10 bg-white px-2 pt-2 shadow-soft lg:hidden">
+    <nav
+      className="safe-bottom-nav fixed inset-x-0 bottom-0 z-[70] grid border-t border-primary/10 bg-white px-2 pt-2 shadow-soft lg:hidden"
+      style={{ gridTemplateColumns: `repeat(${mobileTeacherItems.length}, minmax(0, 1fr))` }}
+    >
       {mobileTeacherItems.map((item) => {
-        const Icon = item.icon;
+        const Icon = iconMap[item.icon as keyof typeof iconMap] ?? Home;
         const active = isActivePath(pathname, item.href);
 
         return (
@@ -32,7 +54,7 @@ export function TeacherMobileBottomNav() {
             )}
           >
             <Icon className="h-5 w-5" />
-            <span className="max-w-full truncate">{item.label}</span>
+            <span className="max-w-full truncate">{item.shortLabel}</span>
           </Link>
         );
       })}

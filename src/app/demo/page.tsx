@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import Link from 'next/link';
+import { PublicContainer } from '@/components/layout/public-container';
 import { AppLogo } from '@/components/shared/app-logo';
 import { ProgressBar } from '@/components/shared/progress-bar';
 import { SectionCard } from '@/components/shared/section-card';
@@ -43,16 +44,16 @@ export default function DemoPage() {
   return (
     <main className="min-h-screen overflow-hidden bg-background text-foreground">
       <header className="border-b border-primary/10 bg-white/88 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl flex-col gap-5 px-5 py-5 sm:px-8 lg:flex-row lg:items-center lg:justify-between">
+        <PublicContainer className="flex flex-col gap-5 py-5 lg:flex-row lg:items-center lg:justify-between">
           <AppLogo href="/" size="sm" />
           <Link href="/" className="text-sm font-bold text-primary hover:underline">
             Beranda
           </Link>
-        </div>
+        </PublicContainer>
       </header>
 
       <section className="relative border-b border-primary/10 bg-[linear-gradient(140deg,hsl(var(--cream))_0%,hsl(var(--background))_48%,hsl(var(--mint))_100%)]">
-        <div className="mx-auto grid max-w-7xl gap-10 px-5 py-12 sm:px-8 lg:grid-cols-[0.92fr_1.08fr] lg:items-center lg:py-16">
+        <PublicContainer className="grid gap-10 py-12 lg:grid-cols-[0.92fr_1.08fr] lg:items-center lg:py-16">
           <div>
             <div className="inline-flex items-center gap-2 rounded-full border border-primary/10 bg-white/78 px-4 py-2 text-sm font-bold text-primary shadow-sm">
               <Sparkles className="h-4 w-4 text-gold" />
@@ -82,10 +83,10 @@ export default function DemoPage() {
           </div>
 
           <DemoHeroPreview />
-        </div>
+        </PublicContainer>
       </section>
 
-      <section className="mx-auto max-w-7xl px-5 py-14 sm:px-8 lg:py-16">
+      <PublicContainer as="section" className="py-14 lg:py-16">
         <SectionTitle
           eyebrow="Preview siswa"
           title="Belajar ringkas, kuis langsung, refleksi tersimpan"
@@ -170,10 +171,10 @@ export default function DemoPage() {
             </div>
           </div>
         </div>
-      </section>
+      </PublicContainer>
 
       <section className="border-y border-primary/10 bg-white/76">
-        <div className="mx-auto max-w-7xl px-5 py-14 sm:px-8 lg:py-16">
+        <PublicContainer className="py-14 lg:py-16">
           <SectionTitle
             eyebrow="Preview guru"
             title="Kelola kelas, modul, refleksi, dan laporan"
@@ -238,10 +239,10 @@ export default function DemoPage() {
               />
             </div>
           </div>
-        </div>
+        </PublicContainer>
       </section>
 
-      <section className="mx-auto max-w-7xl px-5 py-12 sm:px-8">
+      <PublicContainer as="section" className="py-12">
         <div className="rounded-[1.75rem] bg-dark-emerald p-6 text-white shadow-soft sm:p-8 lg:flex lg:items-center lg:justify-between">
           <div>
             <p className="text-sm font-bold text-gold">Siap mencoba langsung?</p>
@@ -259,7 +260,7 @@ export default function DemoPage() {
             </Button>
           </div>
         </div>
-      </section>
+      </PublicContainer>
     </main>
   );
 }

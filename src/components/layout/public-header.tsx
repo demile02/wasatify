@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { PublicContainer } from '@/components/layout/public-container';
 import { AppLogo } from '@/components/shared/app-logo';
 import { Button } from '@/components/ui/button';
 import { publicNavigation } from '@/lib/constants/navigation';
@@ -6,7 +7,7 @@ import { publicNavigation } from '@/lib/constants/navigation';
 export function PublicHeader() {
   return (
     <header className="sticky top-0 z-40 border-b border-primary/10 bg-background/88 backdrop-blur-xl">
-      <div className="mx-auto flex min-h-20 max-w-7xl flex-wrap items-center justify-between gap-3 px-5 py-3 sm:px-8 lg:flex-nowrap">
+      <PublicContainer className="flex min-h-20 flex-wrap items-center justify-between gap-3 py-3 lg:flex-nowrap">
         <AppLogo href="/" size="sm" />
 
         <nav className="hidden items-center gap-8 text-sm font-semibold text-foreground/80 lg:flex">
@@ -33,7 +34,7 @@ export function PublicHeader() {
             </Link>
           ))}
         </nav>
-      </div>
+      </PublicContainer>
     </header>
   );
 }

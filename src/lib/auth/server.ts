@@ -5,7 +5,7 @@ import { createClient, isSupabaseConfigured } from '@/lib/supabase/server';
 import type { AppRole, Profile } from '@/lib/types';
 
 const profileSelect =
-  'id, role, full_name, email, avatar_url, school_name, class_id, class_name, subject, bio, xp, streak_count, last_active_at, created_at, updated_at';
+  'id, role, full_name, email, avatar_url, school_name, class_id, class_name, subject, bio, xp, streak_count, quick_access, last_active_at, created_at, updated_at';
 
 export async function getCurrentUser(): Promise<User | null> {
   if (!isSupabaseConfigured) return null;

@@ -59,6 +59,7 @@ export type Profile = {
   bio?: string | null;
   xp?: number | null;
   streak_count?: number | null;
+  quick_access?: JsonValue | null;
   created_at?: string;
   updated_at?: string;
 };

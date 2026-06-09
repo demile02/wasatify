@@ -1,5 +1,6 @@
 import { ArrowLeft, BarChart3, BookOpen, ClipboardCheck, Megaphone, Users } from 'lucide-react';
 import Link from 'next/link';
+import { PublicContainer } from '@/components/layout/public-container';
 import { AppLogo } from '@/components/shared/app-logo';
 import { ProgressBar } from '@/components/shared/progress-bar';
 import { SectionCard } from '@/components/shared/section-card';
@@ -15,7 +16,7 @@ export default function DemoTeacherPage() {
   return (
     <main className="min-h-screen bg-background text-foreground">
       <header className="border-b border-primary/10 bg-white/88 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-5 sm:px-8">
+        <PublicContainer className="flex items-center justify-between gap-4 py-5">
           <AppLogo href="/" size="sm" />
           <Button asChild variant="outline" size="sm">
             <Link href="/demo">
@@ -23,10 +24,10 @@ export default function DemoTeacherPage() {
               Demo
             </Link>
           </Button>
-        </div>
+        </PublicContainer>
       </header>
 
-      <section className="mx-auto max-w-7xl px-5 py-10 sm:px-8 lg:py-14">
+      <PublicContainer as="section" className="py-10 lg:py-14">
         <div className="mb-8 inline-flex rounded-full border border-primary/10 bg-white/78 px-4 py-2 text-sm font-bold text-primary shadow-sm">
           Ini adalah data contoh untuk pratinjau.
         </div>
@@ -73,7 +74,7 @@ export default function DemoTeacherPage() {
             ))}
           </div>
         </SectionCard>
-      </section>
+      </PublicContainer>
     </main>
   );
 }

@@ -19,6 +19,7 @@ import {
 import Link from 'next/link';
 import Image from 'next/image';
 import { redirect } from 'next/navigation';
+import { PublicContainer } from '@/components/layout/public-container';
 import { PublicHeader } from '@/components/layout/public-header';
 import { InstallAppPrompt } from '@/components/pwa/install-app-prompt';
 import { AppLogo } from '@/components/shared/app-logo';
@@ -85,7 +86,7 @@ export default async function HomePage() {
         id="beranda"
         className="relative border-b border-primary/10 bg-[linear-gradient(140deg,hsl(var(--background))_0%,hsl(var(--cream))_48%,hsl(var(--mint))_100%)]"
       >
-        <div className="mx-auto grid min-h-[calc(100vh-5rem)] w-full max-w-7xl items-center gap-12 px-5 py-14 sm:px-8 lg:grid-cols-[0.94fr_1.06fr] lg:py-20">
+        <PublicContainer className="grid min-h-[calc(100vh-5rem)] items-center gap-12 py-14 lg:grid-cols-[0.94fr_1.06fr] lg:py-20">
           <div>
             <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-primary/10 bg-white/80 px-4 py-2 text-sm font-semibold text-primary shadow-sm">
               <Sparkles className="h-4 w-4 text-gold" />
@@ -130,10 +131,10 @@ export default async function HomePage() {
           </div>
 
           <HeroLearningIllustration />
-        </div>
+        </PublicContainer>
       </section>
 
-      <section id="fitur" className="mx-auto max-w-7xl px-5 py-16 sm:px-8 lg:py-20">
+      <PublicContainer as="section" id="fitur" className="py-16 lg:py-20">
         <SectionHeading
           eyebrow="Fitur utama"
           title="Pengalaman belajar yang ringkas, reflektif, dan terukur"
@@ -152,10 +153,10 @@ export default async function HomePage() {
             );
           })}
         </div>
-      </section>
+      </PublicContainer>
 
       <section id="modul" className="bg-white/72">
-        <div className="mx-auto max-w-7xl px-5 py-12 sm:px-8">
+        <PublicContainer className="py-12">
           <div className="rounded-[1.75rem] bg-dark-emerald px-5 py-6 text-white shadow-soft sm:px-8 sm:py-7">
             <div className="grid gap-6 md:grid-cols-4">
               {landingStats.map((stat, index) => {
@@ -192,10 +193,10 @@ export default async function HomePage() {
               ))}
             </div>
           </div>
-        </div>
+        </PublicContainer>
       </section>
 
-      <section id="tentang" className="mx-auto max-w-7xl px-5 py-16 sm:px-8 lg:py-20">
+      <PublicContainer as="section" id="tentang" className="py-16 lg:py-20">
         <div className="grid gap-10 lg:grid-cols-[0.82fr_1.18fr] lg:items-start">
           <div>
             <p className="text-sm font-semibold text-gold">Manfaat untuk semua</p>
@@ -225,10 +226,10 @@ export default async function HomePage() {
             <DashboardPreview type="teacher" />
           </div>
         </div>
-      </section>
+      </PublicContainer>
 
       <section id="testimoni" className="border-y border-primary/10 bg-mint/40">
-        <div className="mx-auto max-w-7xl px-5 py-16 sm:px-8">
+        <PublicContainer className="py-16">
           <SectionHeading
             eyebrow="Testimoni"
             title="Dibangun untuk kelas yang aktif dan terarah"
@@ -246,11 +247,11 @@ export default async function HomePage() {
               </SectionCard>
             ))}
           </div>
-        </div>
+        </PublicContainer>
       </section>
 
       <footer id="kontak" className="bg-white">
-        <div className="mx-auto grid max-w-7xl gap-8 px-5 py-10 sm:px-8 lg:grid-cols-[1fr_0.8fr_0.6fr]">
+        <PublicContainer className="grid gap-8 py-10 lg:grid-cols-[1fr_0.8fr_0.6fr]">
           <div>
             <AppLogo size="md" />
             <p className="mt-4 max-w-md text-sm leading-7 text-muted-foreground">
@@ -285,7 +286,7 @@ export default async function HomePage() {
               ))}
             </div>
           </div>
-        </div>
+        </PublicContainer>
         <div className="border-t border-primary/10 px-5 py-5 text-center text-xs text-muted-foreground">
           (c) 2026 WASATIFY. Platform pembelajaran Islam Wasathiyah.
         </div>
@@ -315,25 +316,32 @@ function SectionHeading({
 function HeroLearningIllustration() {
   return (
     <div className="relative overflow-hidden rounded-[2rem] border border-primary/10 bg-white p-3 shadow-soft">
-      <div className="relative aspect-[4/3] min-h-[360px] overflow-hidden rounded-[1.55rem] bg-mint sm:min-h-[480px]">
+      <div className="relative aspect-[16/11] overflow-hidden rounded-[1.55rem] bg-mint sm:aspect-[16/10] xl:aspect-[16/9]">
         <Image
           src="/assets/wasatify-hero.png"
           alt="Ilustrasi pengalaman belajar WASATIFY"
           fill
           priority
           sizes="(min-width: 1024px) 48vw, 100vw"
-          className="object-cover"
+          className="object-cover object-[63%_center] sm:object-[62%_center]"
         />
-        <div className="absolute inset-x-4 bottom-4 rounded-3xl border border-white/50 bg-white/88 p-4 shadow-card backdrop-blur sm:inset-x-6 sm:bottom-6">
+        <div className="absolute inset-x-3 bottom-3 rounded-3xl border border-white/20 bg-dark-emerald/70 p-4 text-white shadow-card sm:inset-x-6 sm:bottom-6">
           <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-center">
             <div>
-              <p className="text-sm font-bold text-primary">Belajar ringkas dan reflektif</p>
-              <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              <p className="text-sm font-bold text-white">Belajar ringkas dan reflektif</p>
+              <p className="mt-1 text-xs leading-5 text-white/82">
                 Materi, kuis, refleksi, dan progress belajar tersaji dalam satu alur.
               </p>
             </div>
             <div className="min-w-40">
-              <ProgressBar value={72} label="Progress modul" showValue />
+              <ProgressBar
+                value={72}
+                label="Progress modul"
+                showValue
+                className="[&_span:first-child]:text-white [&_span:last-child]:text-gold"
+                trackClassName="bg-white/24"
+                indicatorClassName="bg-gold"
+              />
             </div>
           </div>
         </div>

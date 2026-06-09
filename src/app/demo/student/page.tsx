@@ -1,5 +1,6 @@
 import { ArrowLeft, BarChart3, BookOpen, ClipboardCheck, PenLine, Sparkles, Trophy } from 'lucide-react';
 import Link from 'next/link';
+import { PublicContainer } from '@/components/layout/public-container';
 import { AppLogo } from '@/components/shared/app-logo';
 import { ProgressBar } from '@/components/shared/progress-bar';
 import { SectionCard } from '@/components/shared/section-card';
@@ -15,7 +16,7 @@ export default function DemoStudentPage() {
   return (
     <main className="min-h-screen bg-background text-foreground">
       <header className="border-b border-primary/10 bg-white/88 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-5 sm:px-8">
+        <PublicContainer className="flex items-center justify-between gap-4 py-5">
           <AppLogo href="/" size="sm" />
           <Button asChild variant="outline" size="sm">
             <Link href="/demo">
@@ -23,11 +24,11 @@ export default function DemoStudentPage() {
               Demo
             </Link>
           </Button>
-        </div>
+        </PublicContainer>
       </header>
 
       <section className="border-b border-primary/10 bg-[linear-gradient(140deg,hsl(var(--cream))_0%,hsl(var(--background))_48%,hsl(var(--mint))_100%)]">
-        <div className="mx-auto max-w-7xl px-5 py-10 sm:px-8 lg:py-14">
+        <PublicContainer className="py-10 lg:py-14">
           <div className="inline-flex items-center gap-2 rounded-full border border-primary/10 bg-white/78 px-4 py-2 text-sm font-bold text-primary shadow-sm">
             <Sparkles className="h-4 w-4 text-gold" />
             Ini adalah data contoh untuk pratinjau.
@@ -64,10 +65,10 @@ export default function DemoStudentPage() {
               </div>
             </SectionCard>
           </div>
-        </div>
+        </PublicContainer>
       </section>
 
-      <section className="mx-auto grid max-w-7xl gap-6 px-5 py-10 sm:px-8 lg:grid-cols-[1fr_0.72fr] lg:py-14">
+      <PublicContainer as="section" className="grid gap-6 py-10 lg:grid-cols-[1fr_0.72fr] lg:py-14">
         <div className="grid gap-6">
           <SectionCard>
             <div className="flex items-center justify-between gap-4">
@@ -143,7 +144,7 @@ export default function DemoStudentPage() {
             </div>
           </SectionCard>
         </div>
-      </section>
+      </PublicContainer>
     </main>
   );
 }

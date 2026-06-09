@@ -5,6 +5,7 @@ import { Camera, Trash2, Upload } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Cropper, { type Area } from 'react-easy-crop';
 import { toast } from 'sonner';
+import { QuickAccessSettings } from '@/components/shared/quick-access-settings';
 import { SectionCard } from '@/components/shared/section-card';
 import { UserAvatar } from '@/components/shared/user-avatar';
 import { Button } from '@/components/ui/button';
@@ -316,6 +317,8 @@ export function ProfileSettingsForm({ profile, roleLabel, roleDescription }: Pro
           </div>
         </div>
       </SectionCard>
+
+      <QuickAccessSettings profile={profile} />
 
       <Dialog open={isCropDialogOpen} onOpenChange={(open) => !isCropping && setIsCropDialogOpen(open)}>
         <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-2xl">

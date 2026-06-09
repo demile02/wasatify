@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { BookOpen, CheckCircle2, Monitor, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 import { AuthRedirectGuard } from '@/components/auth/auth-redirect-guard';
+import { PublicContainer } from '@/components/layout/public-container';
 import { AppLogo } from '@/components/shared/app-logo';
 
 type AuthShellProps = {
@@ -14,7 +15,7 @@ export function AuthShell({ title, description, children }: AuthShellProps) {
   return (
     <main className="min-h-screen bg-[linear-gradient(135deg,hsl(var(--cream))_0%,hsl(var(--background))_52%,hsl(var(--mint))_100%)]">
       <AuthRedirectGuard />
-      <div className="grid min-h-screen lg:grid-cols-[0.95fr_1.05fr]">
+      <PublicContainer className="grid min-h-screen px-0 sm:px-0 lg:grid-cols-[0.95fr_1.05fr] lg:px-0 xl:px-0">
         <section className="relative hidden overflow-hidden border-r border-primary/10 p-8 lg:flex lg:flex-col xl:p-12">
           <div className="absolute inset-0 islamic-pattern opacity-80" />
           <div className="relative z-10">
@@ -67,7 +68,7 @@ export function AuthShell({ title, description, children }: AuthShellProps) {
             {children}
           </div>
         </section>
-      </div>
+      </PublicContainer>
     </main>
   );
 }

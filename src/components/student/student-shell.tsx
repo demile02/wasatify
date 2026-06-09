@@ -23,6 +23,7 @@ import { ProfileMenu } from '@/components/shared/profile-menu';
 import { Button } from '@/components/ui/button';
 import { studentNavigation } from '@/lib/constants/navigation';
 import type { NotificationItem } from '@/lib/notifications';
+import { getQuickAccessNavItems } from '@/lib/quick-access';
 import type { Profile } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -46,16 +47,13 @@ const iconMap = {
   Settings,
 };
 
-const mobileItems = studentNavigation.filter((item) =>
-  ['Beranda', 'Modul Belajar', 'Kuis', 'Refleksi Diri', 'Progress'].includes(item.label),
-);
-
 export function StudentShell({ profile, notifications = [], messageUnreadCount = 0, children }: StudentShellProps) {
   const pathname = usePathname() ?? '';
   const router = useRouter();
   const desktopSearchRef = useRef<HTMLInputElement>(null);
   const mobileSearchRef = useRef<HTMLInputElement>(null);
   const showTopbarSearch = !pathname.startsWith('/student/modules');
+  const mobileItems = getQuickAccessNavItems(profile.quick_access, 'student');
 
   function submitSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -158,12 +156,15 @@ export function StudentShell({ profile, notifications = [], messageUnreadCount =
           )}
         </header>
 
-        <main className="min-w-0 overflow-x-hidden px-5 py-6 pb-app-bottom sm:px-8 lg:pb-10">
-          <div className="mx-auto min-w-0 max-w-7xl">{children}</div>
+        <main className="min-w-0 overflow-x-hidden px-5 py-6 pb-app-bottom sm:px-8 lg:pb-10 xl:px-10">
+          <div className="mx-auto min-w-0 max-w-[1536px]">{children}</div>
         </main>
       </div>
 
-      <nav className="safe-bottom-nav fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-primary/10 bg-white px-2 pt-2 shadow-soft lg:hidden">
+      <nav
+        className="safe-bottom-nav fixed inset-x-0 bottom-0 z-40 grid border-t border-primary/10 bg-white px-2 pt-2 shadow-soft lg:hidden"
+        style={{ gridTemplateColumns: `repeat(${mobileItems.length}, minmax(0, 1fr))` }}
+      >
         {mobileItems.map((item) => {
           const Icon = iconMap[item.icon as keyof typeof iconMap] ?? Home;
           const active = isActivePath(pathname, item.href, item.label);
@@ -177,7 +178,7 @@ export function StudentShell({ profile, notifications = [], messageUnreadCount =
               )}
             >
               <Icon className="h-5 w-5" />
-              <span className="max-w-full truncate">{item.label.split(' ')[0]}</span>
+              <span className="max-w-full truncate">{item.shortLabel}</span>
             </Link>
           );
         })}

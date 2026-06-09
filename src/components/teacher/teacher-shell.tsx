@@ -150,12 +150,12 @@ export function TeacherShell({ profile, notifications = [], children }: TeacherS
           </div>
         </header>
 
-        <main className="min-w-0 overflow-x-hidden px-5 py-6 pb-teacher-app-bottom sm:px-8 lg:pb-10">
-          <div className="mx-auto min-w-0 max-w-7xl">{children}</div>
+        <main className="min-w-0 overflow-x-hidden px-5 py-6 pb-teacher-app-bottom sm:px-8 lg:pb-10 xl:px-10">
+          <div className="mx-auto min-w-0 max-w-[1536px]">{children}</div>
         </main>
       </div>
 
-      <TeacherMobileBottomNav />
+      <TeacherMobileBottomNav profile={profile} />
       <TeacherMobileQuickActions />
     </div>
   );

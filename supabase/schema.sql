@@ -66,6 +66,7 @@ create table if not exists public.profiles (
   class_name text,
   subject text,
   bio text,
+  quick_access jsonb,
   xp integer not null default 0 check (xp >= 0),
   streak_count integer not null default 0 check (streak_count >= 0),
   created_at timestamptz not null default now(),
@@ -75,6 +76,7 @@ create table if not exists public.profiles (
 alter table public.profiles
   add column if not exists class_name text,
   add column if not exists subject text,
+  add column if not exists quick_access jsonb,
   add column if not exists xp integer not null default 0 check (xp >= 0),
   add column if not exists streak_count integer not null default 0 check (streak_count >= 0);
 
