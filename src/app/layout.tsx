@@ -17,7 +17,7 @@ export const metadata: Metadata = {
   title: 'Wasatify - Belajar Islam Wasathiyah',
   description: 'Wasathiyah Smart Learning for Youth',
   verification: {
-    google: 'Qu22mbnX8hETZAIqQWmDFpMM4VJT1-REUmWp3XcJoDI',
+    google: 'A5wD-dN9FLJCiGczdlaX0oEdOkQ8W_K4okGxIQoEiR8',
   },
   manifest: '/manifest.webmanifest?v=20260521',
   applicationName: 'Wasatify',
