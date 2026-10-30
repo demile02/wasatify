@@ -1,0 +1,645 @@
+'use client';
+
+import { useAsyncAction } from '@/hooks/use-async-action';
+
+import { useMemo, useState } from 'react';
+import {
+  Activity,
+  BarChart3,
+  BookOpen,
+  ClipboardCheck,
+  Download,
+  MessageSquareText,
+  RefreshCcw,
+  Search,
+  Users,
+} from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
+import { EmptyState } from '@/components/shared/empty-state';
+import { ProgressBar } from '@/components/shared/progress-bar';
+import { SectionCard } from '@/components/shared/section-card';
+import { StatCard } from '@/components/shared/stat-card';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { formatDateTime } from '@/lib/date';
+import { resetStudentProgressAction, type ResetStudentProgressDataType } from '@/lib/teacher/class-actions';
+import type { TeacherClassActivity, TeacherClassDetailData, TeacherClassModule, TeacherStudentProgress } from '@/lib/teacher/analytics';
+import { cn } from '@/lib/utils';
+
+type TeacherClassDetailViewProps = {
+  data: TeacherClassDetailData;
+};
+
+type TabId = 'overview' | 'students' | 'modules' | 'quizzes' | 'reflections';
+
+const tabs: { id: TabId; label: string }[] = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'students', label: 'Daftar Siswa' },
+  { id: 'modules', label: 'Progress Modul' },
+  { id: 'quizzes', label: 'Nilai & Evaluasi' },
+  { id: 'reflections', label: 'Refleksi' },
+];
+
+const resetDataTypes: Array<{
+  value: ResetStudentProgressDataType;
+  label: string;
+  description: string;
+}> = [
+  {
+    value: 'progress',
+    label: 'Progress modul/lesson saja',
+    description: 'Hapus module_progress dan lesson_progress, tanpa menghapus kuis/refleksi.',
+  },
+  {
+    value: 'quiz',
+    label: 'Kuis saja',
+    description: 'Hapus quiz_attempts untuk modul terkait.',
+  },
+  {
+    value: 'reflection',
+    label: 'Refleksi saja',
+    description: 'Hapus refleksi siswa untuk modul terkait.',
+  },
+  {
+    value: 'all',
+    label: 'Semua data modul',
+    description: 'Hapus progress, kuis, dan refleksi sekaligus.',
+  },
+];
+
+export function TeacherClassDetailView({ data }: TeacherClassDetailViewProps) {
+  const [activeTab, setActiveTab] = useState<TabId>('overview');
+  const [query, setQuery] = useState('');
+  const [quizQuery, setQuizQuery] = useState('');
+  const [reflectionQuery, setReflectionQuery] = useState('');
+  const [resetStudent, setResetStudent] = useState<TeacherStudentProgress | null>(null);
+
+  const filteredStudents = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+
+    return data.students.filter((student) => {
+      if (!normalizedQuery) return true;
+      return (
+        student.name.toLowerCase().includes(normalizedQuery) ||
+        (student.email?.toLowerCase().includes(normalizedQuery) ?? false)
+      );
+    });
+  }, [data.students, query]);
+
+  const filteredQuizActivities = useMemo(
+    () => filterActivitiesByQuery(data.activities, 'quiz', quizQuery),
+    [data.activities, quizQuery],
+  );
+
+  const filteredReflectionActivities = useMemo(
+    () => filterActivitiesByQuery(data.activities, 'reflection', reflectionQuery),
+    [data.activities, reflectionQuery],
+  );
+
+  return (
+    <div className="mt-8 min-w-0 overflow-x-hidden">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <StatCard
+          label="Total Siswa"
+          value={data.students.length}
+          description="Peserta kelas"
+          icon={Users}
+          tone="mint"
+        />
+        <StatCard
+          label="Tingkat Penyelesaian"
+          value={`${data.metrics.completionRate}%`}
+          description="Rata-rata progress siswa"
+          icon={BarChart3}
+        />
+        <StatCard
+          label="Rata-rata Kuis"
+          value={data.metrics.averageQuizScore || '-'}
+          description="Skor dari quiz attempts"
+          icon={ClipboardCheck}
+          tone="gold"
+        />
+        <StatCard
+          label="Refleksi Terkumpul"
+          value={data.metrics.reflectionsCount}
+          description="Refleksi siswa"
+          icon={MessageSquareText}
+          tone="mint"
+        />
+        <StatCard
+          label="Aktivitas Siswa"
+          value={data.metrics.activitiesCount}
+          description="Progress, kuis, refleksi"
+          icon={Activity}
+        />
+      </div>
+
+      <div className="mt-6 flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="-mx-1 flex min-w-0 gap-2 overflow-x-auto px-1 pb-1 scrollbar-hide">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className={cn(
+                'shrink-0 rounded-xl border px-4 py-2.5 text-sm font-bold transition',
+                activeTab === tab.id
+                  ? 'border-primary bg-primary text-white shadow-card'
+                  : 'border-border bg-white text-muted-foreground hover:bg-mint hover:text-primary',
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        <Button type="button" variant="outline" className="bg-white">
+          <Download className="h-4 w-4" />
+          Download Report
+        </Button>
+      </div>
+
+      <div className="mt-6">
+        {activeTab === 'overview' && (
+          <div className="grid min-w-0 gap-6 xl:grid-cols-[1fr_0.78fr]">
+            <SectionCard className="min-w-0">
+              <p className="font-bold text-ink">Progress Kelas Overall</p>
+              <ProgressBar value={data.metrics.completionRate} label="Rata-rata progress kelas" showValue className="mt-4" />
+              <div className="mt-6">
+                <p className="font-bold text-ink">Top Students by Progress</p>
+              </div>
+              <StudentSearch value={query} onChange={setQuery} />
+              <StudentProgressTable students={[...filteredStudents].sort((first, second) => second.progress - first.progress).slice(0, 5)} />
+            </SectionCard>
+
+            <SectionCard className="min-w-0">
+              <p className="font-bold text-ink">Modules Needing Attention</p>
+              {data.modules.length ? (
+                <div className="mt-5 space-y-4">
+                  {[...data.modules].sort((first, second) => first.completionRate - second.completionRate).slice(0, 5).map((moduleItem) => (
+                    <div key={moduleItem.id} className="rounded-2xl border border-border bg-white p-4">
+                      <div className="mb-3 flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-bold text-ink">{moduleItem.title}</p>
+                          <p className="mt-1 text-xs text-muted-foreground">{moduleItem.lessonsCount} lesson</p>
+                        </div>
+                        <ModuleStatusBadge status={moduleItem.status} />
+                      </div>
+                      <ProgressBar value={moduleItem.completionRate} label="Penyelesaian" showValue />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <EmptyState
+                  className="mt-5 min-h-56"
+                  icon={BookOpen}
+                  title="Belum ada modul kelas"
+                  description="Modul yang ditautkan ke kelas ini akan tampil di sini."
+                />
+              )}
+            </SectionCard>
+          </div>
+        )}
+
+        {activeTab === 'students' && (
+          <SectionCard className="min-w-0">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="font-bold text-ink">Siswa</p>
+              <StudentSearch value={query} onChange={setQuery} className="sm:max-w-sm" />
+            </div>
+            <StudentProgressTable students={filteredStudents} onResetStudent={setResetStudent} />
+          </SectionCard>
+        )}
+
+        {activeTab === 'modules' && (
+          <SectionCard className="min-w-0">
+            <p className="font-bold text-ink">Progress Modul</p>
+            {data.modules.length ? (
+              <div className="-mx-1 mt-5 max-w-full overflow-x-auto rounded-2xl border border-border bg-white px-1">
+                <table className="w-full min-w-[760px] text-left text-sm">
+                  <thead className="border-b border-border bg-slate-50 text-xs uppercase tracking-wide text-muted-foreground">
+                    <tr>
+                      <th className="px-4 py-3 font-bold">Siswa</th>
+                      {data.modules.map((moduleItem) => (
+                        <th key={moduleItem.id} className="px-4 py-3 font-bold">{moduleItem.title}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {filteredStudents.map((student) => (
+                      <tr key={student.id}>
+                        <td className="px-4 py-3 font-bold text-ink">{student.name}</td>
+                        {data.modules.map((moduleItem) => (
+                          <td key={moduleItem.id} className="px-4 py-3 text-muted-foreground">
+                            {student.progress}%
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <EmptyState
+                className="mt-5"
+                icon={BookOpen}
+                title="Belum ada modul"
+                description="Modul yang dihubungkan dengan kelas ini belum tersedia."
+              />
+            )}
+          </SectionCard>
+        )}
+
+        {activeTab === 'quizzes' && (
+          <SectionCard className="min-w-0">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="font-bold text-ink">Nilai & Evaluasi</p>
+              <StudentSearch
+                value={quizQuery}
+                onChange={setQuizQuery}
+                placeholder="Cari siswa, email, modul, atau kuis..."
+                className="mt-0 sm:max-w-md"
+              />
+            </div>
+            <ActivityList
+              activities={filteredQuizActivities}
+              emptyTitle={quizQuery.trim() ? 'Nilai kuis tidak ditemukan' : 'Belum ada nilai kuis'}
+              emptyDescription={
+                quizQuery.trim()
+                  ? 'Tidak ada nilai yang cocok dengan pencarian.'
+                  : 'Nilai kuis siswa akan tampil setelah mereka mengerjakan kuis.'
+              }
+            />
+          </SectionCard>
+        )}
+
+        {activeTab === 'reflections' && (
+          <SectionCard className="min-w-0">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="font-bold text-ink">Refleksi</p>
+              <StudentSearch
+                value={reflectionQuery}
+                onChange={setReflectionQuery}
+                placeholder="Cari siswa, email, modul, atau isi refleksi..."
+                className="mt-0 sm:max-w-md"
+              />
+            </div>
+            <ActivityList
+              activities={filteredReflectionActivities}
+              emptyTitle={reflectionQuery.trim() ? 'Refleksi tidak ditemukan' : 'Belum ada refleksi'}
+              emptyDescription={
+                reflectionQuery.trim()
+                  ? 'Tidak ada refleksi yang cocok dengan pencarian.'
+                  : 'Refleksi siswa akan tampil setelah mereka mengirimkan refleksi.'
+              }
+            />
+          </SectionCard>
+        )}
+      </div>
+
+      {data.classInfo && (
+        <ResetProgressDialog
+          classId={data.classInfo.id}
+          student={resetStudent}
+          modules={data.modules}
+          open={Boolean(resetStudent)}
+          onOpenChange={(open) => {
+            if (!open) setResetStudent(null);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function StudentSearch({
+  value,
+  onChange,
+  className,
+  placeholder = 'Cari siswa...',
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  className?: string;
+  placeholder?: string;
+}) {
+  return (
+    <div className={cn('mt-4 flex min-h-12 items-center gap-2 rounded-xl border border-border bg-white px-4 shadow-sm', className)}>
+      <Search className="h-4 w-4 text-muted-foreground" />
+      <input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground/70"
+      />
+    </div>
+  );
+}
+
+function filterActivitiesByQuery(
+  activities: TeacherClassActivity[],
+  type: TeacherClassActivity['type'],
+  query: string,
+) {
+  const normalizedQuery = query.trim().toLowerCase();
+  const typedActivities = activities.filter((activity) => activity.type === type);
+
+  const filtered = normalizedQuery
+    ? typedActivities.filter((activity) => {
+        const searchableText = [
+          activity.title,
+          activity.description,
+          activity.studentName,
+          activity.studentEmail,
+          activity.moduleTitle,
+          activity.quizTitle,
+          activity.reflectionText,
+          activity.actionText,
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+
+        return searchableText.includes(normalizedQuery);
+      })
+    : typedActivities;
+
+  return [...filtered].sort((first, second) => new Date(second.date).getTime() - new Date(first.date).getTime());
+}
+
+function StudentProgressTable({
+  students,
+  onResetStudent,
+}: {
+  students: TeacherStudentProgress[];
+  onResetStudent?: (student: TeacherStudentProgress) => void;
+}) {
+  if (!students.length) {
+    return (
+      <EmptyState
+        className="mt-5"
+        icon={Users}
+        title="Siswa tidak ditemukan"
+        description="Belum ada siswa di kelas ini atau pencarian tidak cocok."
+      />
+    );
+  }
+
+  return (
+    <div className="-mx-1 mt-5 max-w-full overflow-x-auto rounded-2xl border border-border bg-white px-1">
+      <table className="w-full min-w-[900px] text-left text-sm">
+        <thead className="border-b border-border bg-slate-50 text-xs uppercase tracking-wide text-muted-foreground">
+          <tr>
+            <th className="px-4 py-3 font-bold">Siswa</th>
+            <th className="px-4 py-3 font-bold">Progress</th>
+            <th className="px-4 py-3 font-bold">Rata-rata Kuis</th>
+            <th className="px-4 py-3 font-bold">Refleksi</th>
+            <th className="px-4 py-3 font-bold">Modul Selesai</th>
+            <th className="px-4 py-3 font-bold">Terakhir Aktif</th>
+            {onResetStudent && <th className="px-4 py-3 font-bold">Aksi</th>}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-border">
+          {students.map((student) => (
+            <tr key={student.id} className="hover:bg-mint/25">
+              <td className="px-4 py-4">
+                <p className="font-bold text-ink">{student.name}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{student.email ?? '-'}</p>
+              </td>
+              <td className="px-4 py-4">
+                <ProgressBar value={student.progress} showValue />
+              </td>
+              <td className="px-4 py-4 font-semibold text-foreground">{student.averageQuizScore || '-'}</td>
+              <td className="px-4 py-4 text-muted-foreground">{student.reflectionsCount}</td>
+              <td className="px-4 py-4 text-muted-foreground">{student.completedModules}</td>
+              <td className="px-4 py-4 text-muted-foreground">
+                {student.lastActive ? formatDateTime(student.lastActive) : '-'}
+              </td>
+              {onResetStudent && (
+                <td className="px-4 py-4">
+                  <Button type="button" variant="outline" size="sm" className="bg-white" onClick={() => onResetStudent(student)}>
+                    <RefreshCcw className="h-4 w-4" />
+                    Reset
+                  </Button>
+                </td>
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function ResetProgressDialog({
+  classId,
+  student,
+  modules,
+  open,
+  onOpenChange,
+}: {
+  classId: string;
+  student: TeacherStudentProgress | null;
+  modules: TeacherClassModule[];
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const router = useRouter();
+  const [mode, setMode] = useState<'all' | 'module'>('all');
+  const [moduleId, setModuleId] = useState('');
+  const [dataType, setDataType] = useState<ResetStudentProgressDataType>('all');
+  const [isPending, runAction] = useAsyncAction();
+  const selectableModules = modules.filter((moduleItem) => moduleItem.status === 'published');
+  const canSubmit = Boolean(student && (mode === 'all' || moduleId));
+
+  function submitReset() {
+    if (!student) return;
+    if (!canSubmit) {
+      toast.warning('Pilih modul yang ingin direset.');
+      return;
+    }
+
+    runAction(async () => {
+      const result = await resetStudentProgressAction({
+        classId,
+        studentId: student.id,
+        moduleId: mode === 'module' ? moduleId : undefined,
+        dataType,
+      });
+
+      if (!result.ok) {
+        toast.error(result.error ?? 'Progress siswa belum berhasil direset.');
+        return;
+      }
+
+      toast.success('Progress siswa berhasil direset.');
+      onOpenChange(false);
+      setMode('all');
+      setModuleId('');
+      setDataType('all');
+      router.refresh();
+    });
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="flex h-[calc(100dvh-2rem)] max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] flex-col overflow-hidden bg-white p-0 sm:h-auto sm:max-w-lg">
+        <DialogHeader className="shrink-0 px-4 pt-5 sm:px-6 sm:pt-6">
+          <DialogTitle>Reset progress siswa ini?</DialogTitle>
+          <DialogDescription>
+            Pilih scope modul dan jenis data yang ingin direset. Reset tidak dapat dibatalkan.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 pb-1 sm:px-6">
+          <div className="rounded-2xl border border-border bg-mint/35 p-4">
+            <p className="font-bold text-ink">{student?.name}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{student?.email ?? 'Siswa kelas'}</p>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={() => setMode('all')}
+              className={cn(
+                'rounded-2xl border p-4 text-left text-sm font-bold transition',
+                mode === 'all' ? 'border-primary bg-mint text-primary' : 'border-border bg-white text-foreground',
+              )}
+            >
+              Reset semua progress
+              <span className="mt-1 block text-xs font-semibold text-muted-foreground">Semua modul milik guru kelas ini.</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode('module')}
+              className={cn(
+                'rounded-2xl border p-4 text-left text-sm font-bold transition',
+                mode === 'module' ? 'border-primary bg-mint text-primary' : 'border-border bg-white text-foreground',
+              )}
+            >
+              Reset per modul
+              <span className="mt-1 block text-xs font-semibold text-muted-foreground">Pilih satu modul tertentu.</span>
+            </button>
+          </div>
+
+          {mode === 'module' && (
+            <div>
+              <label htmlFor="reset-module" className="text-sm font-bold text-ink">
+                Modul
+              </label>
+              <Select value={moduleId} onValueChange={setModuleId}>
+                <SelectTrigger id="reset-module" className="mt-2 h-12 rounded-xl bg-white">
+                  <SelectValue placeholder="Pilih modul" />
+                </SelectTrigger>
+                <SelectContent>
+                  {selectableModules.map((moduleItem) => (
+                    <SelectItem key={moduleItem.id} value={moduleItem.id}>
+                      {moduleItem.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {!selectableModules.length && (
+                <p className="mt-2 text-sm font-semibold text-gold">Belum ada modul published milik guru kelas ini.</p>
+              )}
+            </div>
+          )}
+
+          <div>
+            <p className="text-sm font-bold text-ink">Tipe data yang direset</p>
+            <div className="mt-2 grid gap-3 sm:grid-cols-2">
+              {resetDataTypes.map((item) => (
+                <button
+                  key={item.value}
+                  type="button"
+                  onClick={() => setDataType(item.value)}
+                  className={cn(
+                    'rounded-2xl border p-4 text-left text-sm font-bold transition',
+                    dataType === item.value ? 'border-primary bg-mint text-primary' : 'border-border bg-white text-foreground',
+                  )}
+                >
+                  {item.label}
+                  <span className="mt-1 block text-xs font-semibold text-muted-foreground">{item.description}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+            Reset tidak dapat dibatalkan. XP dan streak tidak otomatis dikurangi pada MVP ini.
+          </div>
+        </div>
+
+        <DialogFooter className="grid shrink-0 grid-cols-2 gap-2 border-t border-border bg-white px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:flex sm:px-6">
+          <Button type="button" variant="outline" className="min-h-11 w-full sm:w-auto" onClick={() => onOpenChange(false)} disabled={isPending}>
+            Batal
+          </Button>
+          <Button type="button" variant="destructive" className="min-h-11 w-full sm:w-auto" onClick={submitReset} disabled={isPending || !canSubmit}>
+            {isPending ? 'Mereset...' : 'Reset Progress'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ActivityList({
+  activities,
+  emptyTitle = 'Belum ada aktivitas',
+  emptyDescription = 'Aktivitas kuis, refleksi, dan penyelesaian modul akan tampil di sini.',
+}: {
+  activities: TeacherClassActivity[];
+  emptyTitle?: string;
+  emptyDescription?: string;
+}) {
+  if (!activities.length) {
+    return (
+      <EmptyState
+        className="mt-5"
+        icon={Activity}
+        title={emptyTitle}
+        description={emptyDescription}
+      />
+    );
+  }
+
+  return (
+    <div className="mt-5 space-y-3">
+      {activities.map((activity) => (
+        <div key={activity.id} className="flex items-start gap-3 rounded-2xl border border-border bg-white p-4">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-mint text-primary">
+            {activity.type === 'quiz' ? (
+              <ClipboardCheck className="h-5 w-5" />
+            ) : activity.type === 'reflection' ? (
+              <MessageSquareText className="h-5 w-5" />
+            ) : (
+              <BookOpen className="h-5 w-5" />
+            )}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-bold text-ink">{activity.title}</span>
+            <span className="mt-1 block text-xs leading-5 text-muted-foreground">{activity.description}</span>
+          </span>
+          <span className="shrink-0 text-xs font-semibold text-muted-foreground">{formatDateTime(activity.date)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ModuleStatusBadge({ status }: { status: 'published' | 'draft' | 'archived' }) {
+  const className =
+    status === 'published'
+      ? 'border-primary/15 bg-mint text-primary'
+      : status === 'draft'
+        ? 'border-gold/20 bg-cream text-gold'
+        : 'border-slate-200 bg-slate-100 text-slate-600';
+
+  return (
+    <span className={cn('rounded-full border px-3 py-1 text-xs font-bold', className)}>
+      {status === 'published' ? 'Aktif' : status === 'draft' ? 'Draft' : 'Diarsipkan'}
+    </span>
+  );
+}

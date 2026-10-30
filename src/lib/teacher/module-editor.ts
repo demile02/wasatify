@@ -1,0 +1,456 @@
+import { createClient, isSupabaseConfigured } from '@/lib/supabase/server';
+import type { TeacherModuleStatus } from '@/lib/teacher/data';
+import type { Profile } from '@/lib/types';
+import type { QuizOptionId } from '@/lib/teacher/quiz-constants';
+import { parseModuleImageCropConfig, type ModuleImageCropConfig } from '@/lib/media/image-crops';
+
+export type TeacherClassOption = {
+  id: string;
+  name: string;
+  gradeLevel: string | null;
+};
+
+export type ModuleEditorLesson = {
+  id?: string;
+  title: string;
+  content: string;
+  keyPoints: string[] | null;
+  videoUrl: string;
+  infographicUrl: string;
+  infographicAssetId?: string;
+  infographicStatus?: 'pending' | 'processing' | 'ready' | 'failed';
+  infographicSlideCount?: number;
+  infographicError?: string | null;
+  reflectionPrompt: string;
+  orderIndex: number;
+};
+
+export type ModuleEditorQuestion = {
+  id?: string;
+  questionType: 'multiple_choice';
+  questionText: string;
+  options: [string, string, string, string, string];
+  correctAnswer: QuizOptionId;
+  explanation: string;
+  points: number;
+  orderIndex: number;
+};
+
+export type ModuleEditorQuiz = {
+  id?: string;
+  title: string;
+  description: string;
+  passingScore: number;
+  maxAttempts: number;
+  timeLimitSeconds: number;
+  allowRetake: boolean;
+  showExplanation: boolean;
+  shuffleQuestions: boolean;
+  status: TeacherModuleStatus;
+  isPublished: boolean;
+  questions: ModuleEditorQuestion[];
+};
+
+export type ModuleEditorInitialData = {
+  id?: string;
+  title: string;
+  slug: string;
+  description: string;
+  classId: string;
+  estimatedMinutes: number;
+  orderIndex: number;
+  difficulty: 'pemula' | 'menengah' | 'lanjut' | '';
+  tags: string[];
+  coverImagePath: string;
+  heroImagePath: string;
+  imageCropConfig: ModuleImageCropConfig | null;
+  status: TeacherModuleStatus;
+  isPublic: boolean;
+  lessons: ModuleEditorLesson[];
+  quiz: ModuleEditorQuiz;
+};
+
+export type ModuleEditorData = {
+  module: ModuleEditorInitialData | null;
+  classes: TeacherClassOption[];
+  coverGallery: ModuleCoverGalleryImage[];
+};
+
+export type ModuleCoverGalleryImage = {
+  id: string;
+  title: string;
+  publicUrl: string;
+};
+
+type ClassRow = {
+  id: string;
+  name: string;
+  grade_level: string | null;
+};
+
+type ModuleRow = {
+  id: string;
+  slug: string;
+  title: string;
+  description: string;
+  class_id: string | null;
+  estimated_minutes: number | null;
+  order_index: number | null;
+  difficulty: 'pemula' | 'menengah' | 'lanjut' | null;
+  tags: string[] | null;
+  cover_image_path: string | null;
+  hero_image_path: string | null;
+  image_crop_config: unknown;
+  status: TeacherModuleStatus;
+  is_public: boolean | null;
+};
+
+type LessonRow = {
+  id: string;
+  title: string;
+  content: string | null;
+  key_points: unknown;
+  video_url: string | null;
+  infographic_url: string | null;
+  infographic_asset_id?: string | null;
+  reflection_prompt: string | null;
+  order_index: number | null;
+};
+
+type InfographicAssetRow = {
+  id: string;
+  lesson_id: string | null;
+  processing_status: ModuleEditorLesson['infographicStatus'];
+  slide_count: number | null;
+  error_message: string | null;
+};
+
+type QuizRow = {
+  id: string;
+  title: string;
+  description: string | null;
+  passing_score: number | null;
+  max_attempts: number | null;
+  time_limit_seconds: number | null;
+  allow_retake?: boolean | null;
+  show_explanation?: boolean | null;
+  shuffle_questions?: boolean | null;
+  status?: TeacherModuleStatus | null;
+  is_published: boolean | null;
+};
+
+type QuestionRow = {
+  id: string;
+  question_type: ModuleEditorQuestion['questionType'];
+  question_text: string;
+  options: unknown;
+  correct_answer: unknown;
+  explanation: string | null;
+  points: number | null;
+  order_index: number | null;
+};
+
+type CoverGalleryRow = {
+  id: string;
+  title: string | null;
+  path: string;
+  public_url: string | null;
+  file_type: string | null;
+  mime_type: string | null;
+};
+
+const emptyQuiz: ModuleEditorQuiz = {
+  title: 'Kuis Pemahaman',
+  description: '',
+  passingScore: 70,
+  maxAttempts: 3,
+  timeLimitSeconds: 600,
+  allowRetake: true,
+  showExplanation: true,
+  shuffleQuestions: false,
+  status: 'draft',
+  isPublished: false,
+  questions: [createEmptyQuestion()],
+};
+
+export function createEmptyLesson(orderIndex = 1): ModuleEditorLesson {
+  return {
+    title: '',
+    content: '',
+    keyPoints: [],
+    videoUrl: '',
+    infographicUrl: '',
+    infographicAssetId: undefined,
+    infographicStatus: undefined,
+    infographicSlideCount: undefined,
+    infographicError: null,
+    reflectionPrompt: '',
+    orderIndex,
+  };
+}
+
+export function createEmptyQuestion(): ModuleEditorQuestion {
+  return {
+    questionType: 'multiple_choice',
+    questionText: '',
+    options: ['', '', '', '', ''],
+    correctAnswer: 'a',
+    explanation: '',
+    points: 10,
+    orderIndex: 1,
+  };
+}
+
+export function createEmptyModule(): ModuleEditorInitialData {
+  return {
+    title: '',
+    slug: '',
+    description: '',
+    classId: '',
+    estimatedMinutes: 30,
+    orderIndex: 1,
+    difficulty: '',
+    tags: [],
+    coverImagePath: '',
+    heroImagePath: '',
+    imageCropConfig: null,
+    status: 'draft',
+    isPublic: true,
+    lessons: [createEmptyLesson(1)],
+    quiz: { ...emptyQuiz, questions: [createEmptyQuestion()] },
+  };
+}
+
+export async function getModuleEditorData(
+  profile: Profile,
+  moduleId?: string,
+): Promise<ModuleEditorData> {
+  if (!isSupabaseConfigured) {
+    return {
+      coverGallery: [],
+      classes: [
+        { id: 'demo-class-8a', name: 'Kelas X MA A', gradeLevel: 'X MA' },
+        { id: 'demo-class-9a', name: 'Kelas X MA B', gradeLevel: 'X MA' },
+      ],
+      module: moduleId
+        ? {
+            ...createEmptyModule(),
+            id: moduleId,
+            title: 'Adab dalam Islam',
+            description: 'Memahami pentingnya adab dalam kehidupan sehari-hari.',
+            tags: ['Akhlak', 'Adab'],
+            status: 'published',
+            lessons: [
+              {
+                title: 'Pengertian Adab',
+                content: 'Adab adalah sikap baik yang memuliakan Allah, sesama manusia, dan lingkungan.',
+                keyPoints: null,
+                videoUrl: '',
+                infographicUrl: '',
+                infographicAssetId: undefined,
+                reflectionPrompt: '',
+                orderIndex: 1,
+              },
+            ],
+            quiz: {
+              ...emptyQuiz,
+              title: 'Kuis Adab',
+              isPublished: true,
+              questions: [
+                {
+                  questionText: 'Apa makna adab dalam Islam?',
+                  questionType: 'multiple_choice',
+                  options: ['Sikap baik', 'Kecepatan belajar', 'Hafalan saja', 'Kegiatan bermain', 'Mengabaikan sikap terhadap orang lain'],
+                  correctAnswer: 'a',
+                  explanation: 'Adab adalah sikap baik yang tercermin dalam perilaku sehari-hari.',
+                  points: 10,
+                  orderIndex: 1,
+                },
+              ],
+            },
+          }
+        : null,
+    };
+  }
+
+  const supabase = await createClient();
+  const classesQuery = supabase
+    .from('classes')
+    .select('id, name, grade_level')
+    .order('name', { ascending: true });
+  const classesResult =
+    profile.role === 'admin' ? await classesQuery : await classesQuery.eq('teacher_id', profile.id);
+  const classes = ((classesResult.data ?? []) as ClassRow[]).map((classItem) => ({
+    id: classItem.id,
+    name: classItem.name,
+    gradeLevel: classItem.grade_level,
+  }));
+
+  const { data: coverGalleryRows } = await supabase
+    .from('media_assets')
+    .select('id, title, path, public_url, file_type, mime_type')
+    .eq('owner_id', profile.id)
+    .not('public_url', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(100);
+  const coverGallery = ((coverGalleryRows ?? []) as CoverGalleryRow[])
+    .filter((item) => item.public_url && (item.file_type === 'image' || item.mime_type?.startsWith('image/')))
+    .map((item) => ({
+      id: item.id,
+      title: item.title?.trim() || item.path.split('/').pop() || 'Gambar tanpa judul',
+      publicUrl: item.public_url as string,
+    }));
+
+  if (!moduleId) {
+    return { classes, module: null, coverGallery };
+  }
+
+  let moduleQuery = supabase
+    .from('modules')
+    .select('id, slug, title, description, class_id, estimated_minutes, order_index, difficulty, tags, cover_image_path, hero_image_path, image_crop_config, status, is_public, created_by')
+    .eq('id', moduleId);
+
+  if (profile.role === 'teacher') {
+    moduleQuery = moduleQuery.eq('created_by', profile.id);
+  }
+
+  const { data: moduleRow, error: moduleError } = await moduleQuery.maybeSingle<ModuleRow>();
+
+  if (moduleError || !moduleRow) {
+    return { classes, module: null, coverGallery };
+  }
+
+  const [lessonsResult, quizResult] = await Promise.all([
+    supabase
+      .from('lessons')
+      .select('id, title, content, key_points, video_url, infographic_url, infographic_asset_id, reflection_prompt, order_index')
+      .eq('module_id', moduleRow.id)
+      .order('order_index', { ascending: true }),
+    supabase
+      .from('quizzes')
+      .select('id, title, description, passing_score, max_attempts, time_limit_seconds, allow_retake, show_explanation, shuffle_questions, status, is_published')
+      .eq('module_id', moduleRow.id)
+      .order('created_at', { ascending: true })
+      .limit(1),
+  ]);
+
+  const quizRow = ((quizResult.data ?? []) as QuizRow[])[0];
+  const questions = quizRow ? await getQuestions(quizRow.id) : [createEmptyQuestion()];
+  const lessonRows = (lessonsResult.data ?? []) as LessonRow[];
+  const infographicAssetIds = lessonRows.map((lesson) => lesson.infographic_asset_id).filter(Boolean) as string[];
+  const infographicAssets = infographicAssetIds.length
+    ? await getInfographicAssets(infographicAssetIds)
+    : new Map<string, InfographicAssetRow>();
+
+  return {
+    classes,
+    coverGallery,
+    module: {
+      id: moduleRow.id,
+      title: moduleRow.title,
+      slug: moduleRow.slug,
+      description: moduleRow.description,
+      classId: moduleRow.class_id ?? '',
+      estimatedMinutes: moduleRow.estimated_minutes ?? 30,
+      orderIndex: moduleRow.order_index ?? 1,
+      difficulty: moduleRow.difficulty ?? '',
+      tags: moduleRow.tags ?? [],
+      coverImagePath: moduleRow.cover_image_path ?? '',
+      heroImagePath: moduleRow.hero_image_path ?? '',
+      imageCropConfig: parseModuleImageCropConfig(moduleRow.image_crop_config),
+      status: moduleRow.status,
+      isPublic: moduleRow.is_public ?? true,
+      lessons: lessonRows.map((lesson, index) => {
+        const infographicAsset = lesson.infographic_asset_id ? infographicAssets.get(lesson.infographic_asset_id) : undefined;
+        return {
+        id: lesson.id,
+        title: lesson.title,
+        content: lesson.content ?? '',
+        keyPoints: normalizeKeyPoints(lesson.key_points),
+        videoUrl: lesson.video_url ?? '',
+        infographicUrl: lesson.infographic_url ?? '',
+        infographicAssetId: lesson.infographic_asset_id ?? undefined,
+        infographicStatus: infographicAsset?.processing_status,
+        infographicSlideCount: infographicAsset?.slide_count ?? undefined,
+        infographicError: infographicAsset?.error_message ?? null,
+        reflectionPrompt: lesson.reflection_prompt ?? '',
+        orderIndex: lesson.order_index ?? index + 1,
+        };
+      }),
+      quiz: quizRow
+        ? {
+            id: quizRow.id,
+            title: quizRow.title,
+            description: quizRow.description ?? '',
+            passingScore: quizRow.passing_score ?? 70,
+            maxAttempts: Math.max(quizRow.max_attempts ?? 3, 1),
+            timeLimitSeconds: quizRow.time_limit_seconds ?? 600,
+            allowRetake: (quizRow.max_attempts ?? 3) > 1 && (quizRow.allow_retake ?? true),
+            showExplanation: quizRow.show_explanation ?? true,
+            shuffleQuestions: quizRow.shuffle_questions ?? false,
+            status: quizRow.status ?? 'draft',
+            isPublished: quizRow.is_published ?? false,
+            questions,
+          }
+        : { ...emptyQuiz, questions: [createEmptyQuestion()] },
+    },
+  };
+
+  async function getQuestions(quizId: string) {
+    const { data } = await supabase
+      .from('quiz_questions')
+      .select('id, question_type, question_text, options, correct_answer, explanation, points, order_index')
+      .eq('quiz_id', quizId)
+      .order('order_index', { ascending: true });
+
+    return ((data ?? []) as QuestionRow[]).map(mapQuestionRow);
+  }
+
+  async function getInfographicAssets(assetIds: string[]) {
+    const { data } = await supabase
+      .from('infographic_assets')
+      .select('id, lesson_id, processing_status, slide_count, error_message')
+      .in('id', assetIds);
+
+    return new Map(((data ?? []) as InfographicAssetRow[]).map((asset) => [asset.id, asset]));
+  }
+}
+
+function normalizeKeyPoints(value: unknown): string[] | null {
+  if (value === null || value === undefined) return null;
+  if (!Array.isArray(value)) return [];
+
+  return value.filter((point): point is string => typeof point === 'string');
+}
+
+function mapQuestionRow(row: QuestionRow): ModuleEditorQuestion {
+  const options = normalizeOptions(row.options);
+
+  return {
+    id: row.id,
+    questionType: 'multiple_choice',
+    questionText: row.question_text,
+    options,
+    correctAnswer: normalizeCorrectAnswer(row.correct_answer),
+    explanation: row.explanation ?? '',
+    points: row.points ?? 10,
+    orderIndex: row.order_index ?? 1,
+  };
+}
+
+function normalizeOptions(value: unknown): [string, string, string, string, string] {
+  if (!Array.isArray(value)) return ['', '', '', '', ''];
+  const options = value.map((option) => {
+    if (!option || typeof option !== 'object') return '';
+    return String((option as Record<string, unknown>).text ?? '');
+  });
+
+  return [options[0] ?? '', options[1] ?? '', options[2] ?? '', options[3] ?? '', options[4] ?? ''];
+}
+
+function normalizeCorrectAnswer(value: unknown): ModuleEditorQuestion['correctAnswer'] {
+  if (!value || typeof value !== 'object') return 'a';
+  const answer = String((value as Record<string, unknown>).value ?? 'a');
+
+  return answer === 'b' || answer === 'c' || answer === 'd' || answer === 'e' ? answer : 'a';
+}

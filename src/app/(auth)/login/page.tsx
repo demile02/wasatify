@@ -1,0 +1,30 @@
+import { AuthShell } from '@/components/auth/auth-shell';
+import { LoginForm } from '@/components/auth/login-form';
+import { redirectAuthenticatedUser } from '@/lib/auth/redirects';
+
+type LoginPageProps = {
+  searchParams: Promise<{
+    next?: string;
+    confirmed?: string;
+    oauth_error?: string;
+  }>;
+};
+
+export default async function LoginPage({ searchParams }: LoginPageProps) {
+  await redirectAuthenticatedUser();
+
+  const params = await searchParams;
+
+  return (
+    <AuthShell
+      title="Selamat Datang di WASATIFY"
+      description="Masuk untuk melanjutkan pembelajaran Islam Wasathiyah, mengerjakan kuis, menulis refleksi, atau memantau kelas."
+    >
+      <LoginForm
+        nextPath={params.next}
+        confirmed={params.confirmed === '1'}
+        oauthError={params.oauth_error}
+      />
+    </AuthShell>
+  );
+}

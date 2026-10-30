@@ -1,0 +1,87 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color: #0e2530;
+  background: #fbfaf6;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+.pattern {
+  background-color: rgba(255, 255, 255, 0.84);
+  background-image: radial-gradient(rgba(6, 78, 59, 0.07) 1px, transparent 1px);
+  background-size: 18px 18px;
+}
+
+.glass {
+  background: rgba(255, 255, 255, 0.76);
+  border: 1px solid rgba(6, 78, 59, 0.1);
+  box-shadow: 0 16px 50px rgba(15, 35, 45, 0.08);
+  backdrop-filter: blur(18px);
+}
+
+.islamic-panel {
+  position: relative;
+  overflow: hidden;
+}
+
+.islamic-panel::before,
+.islamic-panel::after {
+  border-radius: 999px 999px 0 0;
+  content: '';
+  position: absolute;
+  pointer-events: none;
+}
+
+.islamic-panel::before {
+  width: 210px;
+  height: 150px;
+  right: 9%;
+  bottom: 0;
+  background: linear-gradient(180deg, #b9e5d2 0%, #0f8b65 100%);
+  opacity: 0.22;
+}
+
+.islamic-panel::after {
+  width: 120px;
+  height: 190px;
+  right: 5%;
+  bottom: -22px;
+  background: linear-gradient(180deg, #f3d28a 0%, #0b6b4d 100%);
+  opacity: 0.2;
+}
+
+.progress-ring {
+  background:
+    radial-gradient(closest-side, white 78%, transparent 80% 100%),
+    conic-gradient(#059669 var(--progress), #e5f4ee 0);
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

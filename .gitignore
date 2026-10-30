@@ -1,0 +1,13 @@
+node_modules
+dist
+.next
+out
+.turbo
+.env*
+!.env.example
+.test-accounts.local
+.vercel
+.vite-server*.log
+*.tsbuildinfo
+/db/feedback.json
+/supabase/.temp/
